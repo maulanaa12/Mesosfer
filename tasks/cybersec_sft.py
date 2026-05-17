@@ -12,7 +12,7 @@ are not part of mesosfer's expected user/assistant alternation. These conversati
 are filtered out with a single warning per file rather than crashing the pipeline.
 
 Available datasets:
-  - atmosfer_validation_conversations.jsonl  (300 rows, ID + EN variants)
+  - mesosfer_validation_conversations.jsonl  (300 rows, ID + EN variants)
   - cloud_security_sft.jsonl                 (6 rows)
   - cyber_defensive_conversations.jsonl      (5000 rows, ID + EN variants)
   - identity_conversations.jsonl             (1000 rows, ID + EN variants)
@@ -160,12 +160,12 @@ class MythosCombined(RobustCustomJSON):
         super().__init__(filepath=_sft_path(f"mythos_combined_sft{suffix}.jsonl", sft_dir), **kwargs)
 
 
-class AtmosferValidation(RobustCustomJSON):
-    """Atmosfer validation conversations — domain alignment dataset. 300 rows."""
+class mesosferValidation(RobustCustomJSON):
+    """mesosfer validation conversations — domain alignment dataset. 300 rows."""
     def __init__(self, language="id", sft_dir=None, **kwargs):
         assert language in ("id", "en"), f"language must be 'id' or 'en', got {language}"
         suffix = "" if language == "id" else "_en"
-        super().__init__(filepath=_sft_path(f"atmosfer_validation_conversations{suffix}.jsonl", sft_dir), **kwargs)
+        super().__init__(filepath=_sft_path(f"mesosfer_validation_conversations{suffix}.jsonl", sft_dir), **kwargs)
 
 
 class GeminiTeacher(RobustCustomJSON):
@@ -183,7 +183,7 @@ def build_cybersec_sft_tasks(
     multi_turn_soc_epochs: int = 30,
     tool_oriented_epochs: int = 20,
     mythos_epochs: int = 4,
-    atmosfer_validation_epochs: int = 2,
+    mesosfer_validation_epochs: int = 2,
     gemini_teacher_epochs: int = 2,
     include_english: bool = True,
     sft_dir: str | None = None,
@@ -201,7 +201,7 @@ def build_cybersec_sft_tasks(
         multi_turn_soc_epochs: epochs of multi_turn_soc_sft (4 rows, oversample)
         tool_oriented_epochs: epochs of tool_oriented_cyber_sft (8 rows, oversample)
         mythos_epochs: epochs of mythos_combined_sft (110 rows each)
-        atmosfer_validation_epochs: epochs of atmosfer validation (300 rows each)
+        mesosfer_validation_epochs: epochs of mesosfer validation (300 rows each)
         gemini_teacher_epochs: epochs of gemini teacher (373 rows)
         include_english: whether to also include _en variants of bilingual datasets
         sft_dir: override path to data/sft/ (default: repo_root/data/sft)
@@ -221,8 +221,8 @@ def build_cybersec_sft_tasks(
             tasks.append(CloudSecuritySFT(language=lang, sft_dir=sft_dir))
         for _ in range(mythos_epochs):
             tasks.append(MythosCombined(language=lang, sft_dir=sft_dir))
-        for _ in range(atmosfer_validation_epochs):
-            tasks.append(AtmosferValidation(language=lang, sft_dir=sft_dir))
+        for _ in range(mesosfer_validation_epochs):
+            tasks.append(mesosferValidation(language=lang, sft_dir=sft_dir))
 
     # Monolingual datasets
     for _ in range(multi_turn_soc_epochs):

@@ -16,6 +16,7 @@ os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 import time
 import wandb
 import torch
+from tqdm import tqdm
 from mesosfer.utils.common import compute_init, compute_cleanup, print0, DummyWandb, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
 from mesosfer.data.tokenizer import get_token_bytes
 from mesosfer.utils.checkpoint_manager import save_checkpoint, load_model, load_optimizer_state
@@ -73,7 +74,7 @@ parser.add_argument("--cloud-security-epochs", type=int, default=20, help="epoch
 parser.add_argument("--multi-turn-soc-epochs", type=int, default=30, help="epochs of multi_turn_soc_sft (4 rows, oversampled)")
 parser.add_argument("--tool-oriented-epochs", type=int, default=20, help="epochs of tool_oriented_cyber_sft (8 rows, oversampled)")
 parser.add_argument("--mythos-epochs", type=int, default=4, help="epochs of mythos_combined_sft (110 rows × language)")
-parser.add_argument("--atmosfer-validation-epochs", type=int, default=2, help="epochs of atmosfer_validation_conversations (300 rows × language)")
+parser.add_argument("--mesosfer-validation-epochs", type=int, default=2, help="epochs of mesosfer_validation_conversations (300 rows × language)")
 parser.add_argument("--gemini-teacher-epochs", type=int, default=2, help="epochs of gemini_teacher_conversations (373 rows)")
 parser.add_argument("--include-english-sft", type=int, default=1, help="1 = include _en variants of bilingual cybersec datasets, 0 = ID only")
 parser.add_argument("--disable-cybersec-sft", action="store_true", help="disable all cybersecurity SFT datasets (for ablation)")
@@ -204,7 +205,7 @@ if not args.disable_cybersec_sft:
         multi_turn_soc_epochs=args.multi_turn_soc_epochs,
         tool_oriented_epochs=args.tool_oriented_epochs,
         mythos_epochs=args.mythos_epochs,
-        atmosfer_validation_epochs=args.atmosfer_validation_epochs,
+        mesosfer_validation_epochs=args.mesosfer_validation_epochs,
         gemini_teacher_epochs=args.gemini_teacher_epochs,
         include_english=bool(args.include_english_sft),
     )
@@ -376,6 +377,21 @@ smooth_train_loss = 0 # EMA of training loss
 ema_beta = 0.9 # EMA decay factor
 total_training_time = 0 # total wall-clock time of training
 step = 0
+
+# Estimate total steps from dataset size and batch config for tqdm
+# SFT doesn't know exact num_iterations upfront, so we estimate from dataset size
+if args.num_iterations > 0:
+    _estimated_total = args.num_iterations
+else:
+    _estimated_total = max(1, len(train_dataset) // (args.device_batch_size * ddp_world_size))
+pbar = tqdm(
+    total=_estimated_total,
+    desc="sft",
+    disable=not master_process,
+    dynamic_ncols=True,
+    bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
+)
+
 while True:
     flops_so_far = num_flops_per_token * args.total_batch_size * step
 
@@ -391,7 +407,8 @@ while True:
         val_loader = build_val_loader()
         eval_steps = args.eval_tokens // (args.device_batch_size * args.max_seq_len * ddp_world_size)
         val_bpb = evaluate_bpb(model, val_loader, eval_steps, token_bytes)
-        print0(f"Step {step:05d} | Validation bpb: {val_bpb:.4f}")
+        if master_process:
+            tqdm.write(f"Step {step:05d} | Validation bpb: {val_bpb:.4f}")
         if val_bpb < min_val_bpb:
             min_val_bpb = val_bpb
         wandb_run.log({
@@ -427,7 +444,8 @@ while True:
             return sum((task_results[t] - baseline_accuracies[t]) / (1.0 - baseline_accuracies[t]) for t in tasks) / len(tasks)
         chatcore = centered_mean(all_tasks)
         chatcore_cat = centered_mean(categorical_tasks)
-        print0(f"Step {step:05d} | ChatCORE: {chatcore:.4f} | ChatCORE_cat: {chatcore_cat:.4f}")
+        if master_process:
+            tqdm.write(f"Step {step:05d} | ChatCORE: {chatcore:.4f} | ChatCORE_cat: {chatcore_cat:.4f}")
         wandb_run.log({
             "step": step,
             "total_training_flops": flops_so_far,
@@ -515,7 +533,25 @@ while True:
     mfu = 100 * flops_per_sec / (gpu_peak_flops * ddp_world_size)
     if step > 10:
         total_training_time += dt # only count the time after the first 10 steps
-    print0(f"step {step:05d} ({pct_done:.2f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt * 1000:.2f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.2f} | epoch: {current_epoch} | total time: {total_training_time/60:.2f}m")
+
+    # Update tqdm progress bar
+    if master_process:
+        postfix = {
+            "loss": f"{debiased_smooth_loss:.4f}",
+            "lr": f"{lrm:.2f}",
+            "tok/s": f"{tok_per_sec:,}",
+            "mfu%": f"{mfu:.1f}",
+            "epoch": current_epoch,
+        }
+        if min_val_bpb < float("inf"):
+            postfix["val_bpb"] = f"{val_bpb:.4f}" if 'val_bpb' in dir() and val_bpb is not None else "—"
+            postfix["best"] = f"{min_val_bpb:.4f}"
+        # Update total estimate dynamically based on approx_progress
+        if approx_progress > 0 and args.num_iterations < 0:
+            pbar.total = max(pbar.n + 1, int(step / approx_progress))
+        pbar.set_postfix(postfix, refresh=False)
+        pbar.update(1)
+
     if step % 10 == 0:
         wandb_run.log({
             "step": step,
@@ -539,6 +575,7 @@ while True:
         gc.collect() # manually collect, just to be safe for very long runs
 
 # print a few more stats
+pbar.close()
 print0(f"Peak memory usage: {get_max_memory() / 1024 / 1024:.2f}MiB")
 print0(f"Total training time: {total_training_time/60:.2f}m")
 print0(f"Minimum validation bpb: {min_val_bpb:.4f}")

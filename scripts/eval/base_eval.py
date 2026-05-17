@@ -227,20 +227,26 @@ def main():
         print0("Model Samples")
         print0("="*80)
         if ddp_rank == 0:
+            # Mix of general knowledge and cybersecurity prompts to probe domain coverage
             prompts = [
+                # General knowledge (sanity checks)
                 "The capital of France is",
-                "The chemical symbol of gold is",
-                "If yesterday was Friday, then tomorrow will be",
-                "The opposite of hot is",
-                "The planets of the solar system are:",
-                "My favorite color is",
                 "If 5*x + 3 = 13, then x is",
+                "The opposite of hot is",
+                # Cybersecurity domain probes
+                "A buffer overflow vulnerability allows",
+                "MITRE ATT&CK technique T1059 refers to",
+                "To detect SQL injection attacks, a SOC analyst should",
+                "CVE-2021-44228 (Log4Shell) is exploited by",
+                "When responding to a ransomware incident, the first step is",
+                "A YARA rule for detecting malicious PowerShell would include",
+                "The principle of least privilege means",
             ]
             engine = Engine(model, tokenizer)
             print0("\nConditioned samples:")
             for prompt in prompts:
                 tokens = tokenizer(prompt, prepend="<|bos|>")
-                sample, _ = engine.generate_batch(tokens, num_samples=1, max_tokens=16, temperature=0)
+                sample, _ = engine.generate_batch(tokens, num_samples=1, max_tokens=32, temperature=0)
                 sample_str = tokenizer.decode(sample[0])
                 print0("-" * 80)
                 print0(sample_str)

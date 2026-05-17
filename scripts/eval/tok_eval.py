@@ -143,6 +143,16 @@ science_text = r"""
 Photosynthesis is a photochemical energy transduction process in which light-harvesting pigment–protein complexes within the thylakoid membranes of oxygenic phototrophs absorb photons and initiate charge separation at the reaction center, driving the linear electron transport chain from water to NADP⁺ via photosystem II, the cytochrome b₆f complex, and photosystem I, concomitantly generating a trans-thylakoid proton motive force utilized by chloroplastic ATP synthase. The light-dependent reactions produce ATP and NADPH, which fuel the Calvin–Benson–Bassham cycle in the stroma, wherein ribulose-1,5-bisphosphate is carboxylated by ribulose-1,5-bisphosphate carboxylase/oxygenase (RuBisCO) to form 3-phosphoglycerate, subsequently reduced and regenerated through a series of enzymatic steps, enabling net assimilation of CO₂ into triose phosphates and ultimately carbohydrates. This process is tightly regulated by photoprotective mechanisms, redox feedback, and metabolite flux, representing a central biochemical pathway coupling solar energy capture to the biosphere’s primary productivity.
 """.strip()
 
+# Cybersecurity narrative (incident response, MITRE ATT&CK, CVE references)
+cybersec_text = r"""
+At 14:32 UTC, the SOC observed CVE-2024-3094-style supply chain backdoor activity originating from the build pipeline for service api-prod-east. The initial indicator was anomalous ELF section padding in libcompress.so.5 detected by YARA rule MAL_SupplyChain_Liblzma_3094. Within minutes, the EDR (CrowdStrike Falcon) flagged a suspicious sshd child process spawning /usr/bin/python3 with base64-encoded arguments, consistent with MITRE ATT&CK T1059.006 (Python) and T1027.013 (encrypted/encoded files). Containment actions: isolated host i-0a3f9b7c via VPC NACL, snapshotted volume vol-0e8a1b2c3d4e5f6 for forensics, revoked IAM role arn:aws:iam::482719364105:role/api-prod-east-svc, and rotated all KMS keys touched in the last 24h. The threat hunting team correlated this with prior CISA KEV entries and confirmed lateral movement via SSM Session Manager (T1021.004), suggesting a hands-on-keyboard intrusion rather than fully automated malware. Recommended SigmaHQ rule: detect ssm:StartSession from non-jumphost source IPs in CloudTrail. Final assessment: high-confidence intrusion, defense evasion phase, no exfiltration confirmed but credential access likely.
+""".strip()
+
+# Suricata-style alert in narrative form (typical SOC log analysis)
+soc_log_text = r"""
+Between 03:14:22 and 03:14:48 UTC, internal host 10.10.24.57 generated 4 Suricata alerts (signature_id 2030011, "ET MALWARE Possible C2 Beaconing Activity", severity 1) targeting external IP 185.193.126.44 on TCP/443. The flow analysis showed periodic small-byte transfers (1244 bytes outbound, 1987 bytes inbound) with sub-second TLS handshakes, consistent with command-and-control beaconing rather than legitimate traffic. JA3 fingerprint 72a589da586844d7f0818ce684948eea matched known Cobalt Strike profiles. Concurrent DNS TXT queries for ajd82j3k2k2k.cmd-sync-storage.com (algorithmically generated subdomain pattern) returned base64-encoded answers — strong indicator of DNS tunneling exfiltration (MITRE ATT&CK T1071.004). Action taken: blackholed destination IP at perimeter firewall, queued endpoint for memory acquisition.
+""".strip()
+
 # The tokenizer was trained on data from earlier shards, so it has seen this data
 train_docs = next(parquets_iter_batched(split="train"))
 train_text = "\n".join(train_docs)
@@ -155,6 +165,8 @@ all_text = [
     ("code", code_text),
     ("math", math_text),
     ("science", science_text),
+    ("cybersec", cybersec_text),
+    ("soc-log", soc_log_text),
     ("fwe-train", train_text),
 ]
 if val_text:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Prepare a high-quality, cybersecurity-focused pretraining dataset for Atmosfer.
+Prepare a high-quality, cybersecurity-focused pretraining dataset for mesosfer.
 Version 3: Replaces gated/broken datasets with fully public alternatives.
 
 Usage:
@@ -49,7 +49,7 @@ except ModuleNotFoundError:
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# Load .env from the atmosfer project directory
+# Load .env from the mesosfer project directory
 # =============================================================================
 
 def _load_env_file():
@@ -1188,7 +1188,7 @@ def format_vulnerability_record(row):
 def _urlopen(url):
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "Atmosfer-data-prep/3.0 (+https://nvd.nist.gov/vuln/data-feeds)"},
+        headers={"User-Agent": "mesosfer-data-prep/3.0 (+https://nvd.nist.gov/vuln/data-feeds)"},
     )
     return urllib.request.urlopen(request, timeout=120)
 
@@ -1751,7 +1751,7 @@ def print_status(output_dir):
 
     print()
     print("=" * 70)
-    print("  ATMOSFER DATA PREPARATION — PROGRESS")
+    print("  mesosfer DATA PREPARATION — PROGRESS")
     print("=" * 70)
     print()
 
@@ -1786,7 +1786,7 @@ def _effective_source_cap_tokens(source_config):
 def print_dry_run_summary(args, source_names, output_dir):
     print()
     print("=" * 70)
-    print("  ATMOSFER DATA PREPARATION — DRY RUN")
+    print("  mesosfer DATA PREPARATION — DRY RUN")
     print("=" * 70)
     print("  [DRY RUN] No data will be downloaded or written.")
     print(f"  Output: {output_dir}")
@@ -2041,7 +2041,7 @@ def interleaved_shuffle_main(args, source_names, output_dir):
 # =============================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Download and prepare the Atmosfer cybersecurity pretraining dataset")
+    parser = argparse.ArgumentParser(description="Download and prepare the mesosfer cybersecurity pretraining dataset")
     parser.add_argument("--output-dir", type=str, default="base_data_cybersecurity",
                         help="Output directory name under mesosfer_BASE_DIR")
     parser.add_argument("--max-tokens", type=int, default=None,
@@ -2129,7 +2129,7 @@ def main():
 
     print()
     print("=" * 70)
-    print("  ATMOSFER DATA PREPARATION v3")
+    print("  mesosfer DATA PREPARATION v3")
     print("  Cybersecurity-focused pretraining dataset (Public)")
     if resuming:
         print("  🔄 RESUMING from previous run")

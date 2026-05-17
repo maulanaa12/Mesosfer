@@ -1,6 +1,6 @@
-# Running mesosfer on AMD GPUs
+# Running Mesosfer on AMD GPUs
 
-This guide covers the setup and execution of mesosfer on AMD GPUs using ROCm.
+This guide covers the setup and execution of Mesosfer on AMD GPUs using ROCm.
 
 ## Prerequisites
 

@@ -1,6 +1,6 @@
-# Running mesosfer on NVIDIA GPUs
+# Running Mesosfer on NVIDIA GPUs
 
-This guide covers the setup and execution of mesosfer on NVIDIA GPUs using CUDA.
+This guide covers the setup and execution of Mesosfer on NVIDIA GPUs using CUDA.
 
 ## Prerequisites
 
