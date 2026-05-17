@@ -23,8 +23,8 @@ This guide covers the setup and execution of mesosfer on AMD GPUs using ROCm.
 
 - **OS:** Linux only (Ubuntu 20.04+, RHEL/CentOS 8+, SLES 15+)
 - **Python:** 3.12+
-- **ROCm:** 6.4+ (required for MI355X/MI350X/MI325X, recommended for all)
-- **ROCm Driver:** Included with ROCm installation
+- **ROCm:** 7.0+ (recommended — use the `PyTorch 2.6.0 - ROCm 7.0` pre-built image)
+- **PyTorch:** 2.6.0+ with ROCm support (pre-installed in the image)
 
 > **Important:** ROCm is Linux-only. Windows support via WSL2 is experimental.
 
@@ -45,23 +45,17 @@ rocminfo | grep -A 10 "Agent"
 
 ## Installation
 
-### 1. Install ROCm (if not already installed)
+### 1. Use the Pre-Built ROCm Image (Recommended)
 
-Follow the official ROCm installation guide for your distribution:
+The easiest way to get started is with the official PyTorch ROCm image:
 
-**Ubuntu:**
-```bash
-# Add ROCm repository
-wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | sudo apt-key add -
-echo 'deb [arch=amd64] https://repo.radeon.com/rocm/apt/6.4/ jammy main' | sudo tee /etc/apt/sources.list.d/rocm.list
-sudo apt update
-sudo apt install rocm-llvm rocm-smi rocminfo
-
-# For MI355X/MI350X/MI325X:
-sudo apt install rocm-6.4.0
+```
+PyTorch 2.6.0 - ROCm 7.0.0
 ```
 
-**For detailed installation:** [ROCm Installation Guide](https://rocm.docs.amd.com/projects/install/en/latest/)
+This image has PyTorch, ROCm drivers, and all GPU libraries pre-installed. No manual ROCm installation needed.
+
+> If you need to install ROCm manually on bare metal, follow the [ROCm Installation Guide](https://rocm.docs.amd.com/projects/install/en/latest/).
 
 ### 2. Install uv (if not already installed)
 
@@ -73,7 +67,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```bash
 cd /path/to/mesosfer
-uv venv
+uv venv --python 3.12
 source .venv/bin/activate
 ```
 
@@ -83,22 +77,26 @@ source .venv/bin/activate
 # For ROCm 7.0 pre-built images (PyTorch 2.6.0 already installed in image):
 uv sync --extra rocm --no-build-isolation
 
-# For ROCm 6.4 (manual install from pytorch.org WHL):
-# uv sync --extra rocm
+# Install Flash Attention 2 for ROCm (enables faster training vs SDPA fallback)
+pip install flash-attn --no-build-isolation
 ```
 
-> **ROCm 7.0 image note:** The `PyTorch 2.6.0 - ROCm 7.0` image already has torch
-> pre-installed. Use `--no-build-isolation` so uv reuses the existing torch instead
-> of trying to download from the WHL index (which only has ROCm 6.4 builds).
+> **Why `--no-build-isolation`?** The `PyTorch 2.6.0 - ROCm 7.0` image has torch
+> pre-installed at the system level. This flag tells uv to reuse it instead of
+> downloading from the WHL index (which only carries ROCm 6.4 builds).
+> The same flag is needed for `flash-attn` because it compiles against the
+> pre-installed ROCm torch headers.
 
 ### 5. Verify Installation
 
 ```bash
 # Check ROCm PyTorch
-python -c "import torch; print(f'ROCm available: {torch.cuda.is_available()}, Version: {torch.version.hip}')"
+python -c "import torch; print(f'ROCm: {torch.cuda.is_available()}, Version: {torch.version.hip}')"
+# Expected: ROCm: True, Version: 7.0.0...
 
 # Verify GPU detected
 python -c "import torch; print(f'GPU: {torch.cuda.get_device_name(0)}')"
+# Expected: GPU: AMD Instinct MI300X (or similar)
 ```
 
 ---
@@ -156,8 +154,8 @@ export HIP_VISIBLE_DEVICES=0,2,4,6  # Use GPUs 0, 2, 4, 6 only
 
 Latest AMD compute GPUs with highest performance:
 - Full BF16 support
-- Flash Attention via ROCm libraries
-- ROCm 6.4+ required
+- Flash Attention 2 via ROCm 7.0
+- ROCm 7.0+ recommended
 
 ```bash
 export mesosfer_TORCH_BACKEND=rocm
@@ -180,15 +178,24 @@ torchrun --standalone --nproc_per_node=8 -m scripts.base_train -- \
 Popular for large-scale inference and training:
 - 8 GCDs (MI300X) or 4 GCDs (MI300A)
 - 192GB HBM3 per GPU
-- ROCm 6.0+ recommended
+- ROCm 7.0+ recommended
+
+> **MI300X GCD note:** MI300X exposes 8 GCDs but PyTorch sees them as **1 logical device**
+> with 192GB unified VRAM. `torch.cuda.device_count()` returns 1, not 8.
+> Use `--nproc_per_node=1` for single-node training on MI300X.
 
 ```bash
-# MI300X (8 GCDs)
-export HIP_VISIBLE_DEVICES=0,1  # Each GCD pair is one "device"
-# Note: MI300X exposes 8 GCDs as 2 "devices" in PyTorch
-
-# MI300A (4 GCDs)
+# Single MI300X (1 logical device = 8 GCDs unified)
 export HIP_VISIBLE_DEVICES=0
+torchrun --standalone --nproc_per_node=1 -m scripts.base_train -- \
+    --depth=24 \
+    --target-param-data-ratio=10 \
+    --device-batch-size=16 \
+    --warmup-steps=200 \
+    --window-pattern=SSL \
+    --save-every=1000 \
+    --core-metric-every=5000 \
+    --run=$WANDB_RUN
 ```
 
 ### MI250X / MI250
@@ -377,17 +384,17 @@ python -m scripts.chat_web
 
 ### Flash Attention Issues
 
-AMD uses ROCm's implementation of Flash Attention:
+mesosfer uses Flash Attention 2 on ROCm via `flash-attn` package:
 
 ```bash
-# Check attention backend at startup
-# Should show ROCm FA or SDPA fallback
+# Check which attention backend is active at startup
+# Should print: "✓ Using Flash Attention 2 for training attention (ROCm)."
 
-# If issues, ensure ROCm 6.4+:
-sudo apt install rocm-6.4.0
+# If SDPA fallback is used instead, install flash-attn for ROCm:
+pip install flash-attn --no-build-isolation
 
-# Or install triton-rocm explicitly:
-pip install pytorch-triton-rocm==3.5.1
+# Verify ROCm 7.0 is detected:
+python -c "import torch; print(torch.version.hip)"
 ```
 
 ### Multi-GPU Training Fails
@@ -458,15 +465,20 @@ pip install pytorch-triton-rocm==3.5.1
 # 1. Verify ROCm detection
 rocm-smi
 
-# 2. Verify PyTorch ROCm
+# 2. Verify PyTorch ROCm 7.0
 python -c "import torch; print(f'ROCm: {torch.cuda.is_available()}, Device: {torch.cuda.get_device_name(0)}, Version: {torch.version.hip}')"
+# Expected: ROCm: True, Device: AMD Instinct MI300X, Version: 7.0.0...
 
 # 3. Verify compute dtype (should be bf16)
-python -c "import torch; print(f'Compute dtype: bfloat16')"
+python -c "from mesosfer.utils.common import COMPUTE_DTYPE; print(f'Compute dtype: {COMPUTE_DTYPE}')"
 
-# 4. Quick test run
+# 4. Verify attention backend (should be FA2 on ROCm)
+python -c "from mesosfer.model.flash_attention import ATTENTION_BACKEND; print(f'Attention: {ATTENTION_BACKEND}')"
+# Expected: Attention: fa2
+
+# 5. Quick test run (depth 4, 10 steps, no GPU memory pressure)
 export mesosfer_TORCH_BACKEND=rocm
-python -m scripts.base_train --depth=4 --num-iterations=10 --run=dummy --device-batch-size=1
+python -m scripts.base_train -- --depth=4 --num-iterations=10 --run=dummy --device-batch-size=1 --core-metric-every=-1
 ```
 
 ---
