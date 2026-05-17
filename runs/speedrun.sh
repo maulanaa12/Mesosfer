@@ -79,8 +79,8 @@ wait $DATASET_DOWNLOAD_PID
 # d24 model with improved training config:
 #   --target-param-data-ratio=10  : compromise between speedrun (8, undertrained) and compute-optimal (12)
 #   --warmup-steps=200            : longer warmup needed for d24 (~500M params) to stabilize Muon momentum buffer
-#   --window-pattern=SSL          : 16 short + 8 long layers, balanced for cybersecurity long-context needs
-torchrun --standalone --nproc_per_node=8 -m scripts.base_train -- --depth=24 --target-param-data-ratio=10 --device-batch-size=16 --warmup-steps=200 --window-pattern=SSL --fp8 --run=$WANDB_RUN
+#   --window-pattern=L            : full attention (required for ROCm FA2; on NVIDIA 'SSL' is faster)
+torchrun --standalone --nproc_per_node=8 -m scripts.base_train -- --depth=24 --target-param-data-ratio=10 --device-batch-size=16 --warmup-steps=200 --window-pattern=L --fp8 --run=$WANDB_RUN
 # evaluate the model: CORE metric, BPB on train/val, and draw samples
 torchrun --standalone --nproc_per_node=8 -m scripts.base_eval -- --device-batch-size=16
 
