@@ -27,14 +27,13 @@ import torch.distributed as dist
 
 from mesosfer.model.gpt import GPT, GPTConfig, Linear
 from mesosfer.data.dataloader import tokenizing_distributed_data_loader_bos_bestfit, tokenizing_distributed_data_loader_with_state_bos_bestfit
-from mesosfer.utils.common import compute_init, compute_cleanup, print0, DummyWandb, print_banner, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
+from mesosfer.utils.common import compute_init, compute_cleanup, print0, DummyWandb, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
 from mesosfer.data.tokenizer import get_tokenizer, get_token_bytes
 from mesosfer.utils.checkpoint_manager import save_checkpoint, load_checkpoint
 from mesosfer.eval.loss_eval import evaluate_bpb
 from mesosfer.eval.engine import Engine
 from mesosfer.model.flash_attention import ATTENTION_BACKEND, HAS_FA2, HAS_FA3, _is_rocm
 from scripts.eval.base_eval import evaluate_core
-print_banner()
 
 # -----------------------------------------------------------------------------
 # CLI arguments
