@@ -296,8 +296,12 @@ class GPT(nn.Module):
         pattern = config.window_pattern.upper()
         assert all(c in "SL" for c in pattern), f"Invalid window_pattern: {pattern}. Use only S and L."
         # Map characters to window sizes
-        long_window = config.sequence_len
-        short_window = -(-long_window // 4 // 128) * 128  # ceil to FA3 tile size (2048 -> 768)
+        # L = (-1, 0): unlimited left context, causal mask only — bypasses sliding window
+        #              code path in FA2/FA3 (required for ROCm Triton backend which doesn't
+        #              support sliding window backward yet)
+        # S = (short_window, 0): bounded sliding window for compute savings on NVIDIA
+        long_window = -1  # unlimited; backends interpret as full causal attention
+        short_window = -(-config.sequence_len // 4 // 128) * 128  # ceil to FA3 tile size (2048 -> 768)
         char_to_window = {
             "L": (long_window, 0),
             "S": (short_window, 0),

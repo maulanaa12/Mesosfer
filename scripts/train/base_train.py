@@ -24,6 +24,7 @@ from contextlib import contextmanager
 import wandb
 import torch
 import torch.distributed as dist
+from tqdm import tqdm
 
 from mesosfer.model.gpt import GPT, GPTConfig, Linear
 from mesosfer.data.dataloader import tokenizing_distributed_data_loader_bos_bestfit, tokenizing_distributed_data_loader_with_state_bos_bestfit
@@ -417,6 +418,16 @@ print0(f"Tokens / micro-batch: {world_tokens_per_fwdbwd:,}")
 print0(f"Total batch size {total_batch_size:,} => gradient accumulation steps: {grad_accum_steps}")
 
 # Go!
+# Initialize tqdm progress bar (master process only to avoid output interleaving in DDP)
+pbar = tqdm(
+    total=num_iterations,
+    initial=step,
+    desc="train",
+    disable=not master_process,
+    dynamic_ncols=True,
+    bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
+)
+last_tok_per_sec = 0  # latest throughput for postfix display
 while True:
     last_step = step == num_iterations # loop runs num_iterations+1 times so that we can eval/save at the end
     flops_so_far = num_flops_per_token * total_batch_size * step
@@ -428,7 +439,8 @@ while True:
         eval_steps = args.eval_tokens // (args.device_batch_size * args.max_seq_len * ddp_world_size)
         with disable_fp8(model):
             val_bpb = evaluate_bpb(model, val_loader, eval_steps, token_bytes)
-        print0(f"Step {step:05d} | Validation bpb: {val_bpb:.6f}")
+        if master_process:
+            tqdm.write(f"Step {step:05d} | Validation bpb: {val_bpb:.6f}")
         if val_bpb < min_val_bpb:
             min_val_bpb = val_bpb
         wandb_run.log({
@@ -447,7 +459,8 @@ while True:
         model.eval()
         with disable_fp8(orig_model):
             results = evaluate_core(orig_model, tokenizer, device, max_per_task=args.core_metric_max_per_task)
-        print0(f"Step {step:05d} | CORE metric: {results['core_metric']:.4f}")
+        if master_process:
+            tqdm.write(f"Step {step:05d} | CORE metric: {results['core_metric']:.4f}")
         wandb_run.log({
             "step": step,
             "total_training_flops": flops_so_far,
@@ -474,7 +487,8 @@ while True:
             tokens = tokenizer(prompt, prepend="<|bos|>")
             with disable_fp8(orig_model):
                 sample, _ = engine.generate_batch(tokens, num_samples=1, max_tokens=16, temperature=0)
-            print0(tokenizer.decode(sample[0]))
+            if master_process:
+                tqdm.write(tokenizer.decode(sample[0]))
         model.train()
 
     # save checkpoint: at the end of the run, or every save_every steps, except at the first step or the resume step
@@ -568,7 +582,22 @@ while True:
     else:
         eta_str = ""
     epoch = f"{dataloader_state_dict['epoch']} pq: {dataloader_state_dict['pq_idx']} rg: {dataloader_state_dict['rg_idx']}"
-    print0(f"step {step:05d}/{num_iterations:05d} ({pct_done:.2f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt * 1000:.2f}ms | tok/sec: {tok_per_sec:,} | bf16_mfu: {mfu:.2f} | epoch: {epoch} | total time: {total_training_time/60:.2f}m{eta_str}")
+
+    # Update tqdm progress bar with live training stats
+    last_tok_per_sec = tok_per_sec
+    if master_process:
+        postfix = {
+            "loss": f"{debiased_smooth_loss:.4f}",
+            "lr": f"{lrm:.2f}",
+            "tok/s": f"{tok_per_sec:,}",
+            "mfu%": f"{mfu:.1f}",
+        }
+        if val_bpb is not None:
+            postfix["val_bpb"] = f"{val_bpb:.4f}"
+            postfix["best"] = f"{min_val_bpb:.4f}"
+        pbar.set_postfix(postfix, refresh=False)
+        pbar.update(1)
+
     if step % 100 == 0:
         log_data = {
             "step": step,
@@ -598,6 +627,7 @@ while True:
         gc.collect() # manually collect, just to be safe for very, very long runs
 
 # print a few more stats
+pbar.close()
 print0(f"Peak memory usage: {get_max_memory() / 1024 / 1024:.2f}MiB")
 print0(f"Total training time: {total_training_time/60:.2f}m")
 if val_bpb is not None:
