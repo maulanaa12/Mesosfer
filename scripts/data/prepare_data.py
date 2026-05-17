@@ -530,20 +530,26 @@ DATASET_SOURCES = {
     },
     "local_cloud_security": {
         "source_type": "local_files",
-        "description": "Local AWS, Azure, and GCP audit/security events",
+        # Raw JSON cloud logs (cloudtrail, azure, gcp) are converted to natural language
+        # narratives by scripts/data/convert_logs_to_nl.py before training.
+        # Run: python -m scripts.data.convert_logs_to_nl
+        # Output goes to data/cloud_nl/*.jsonl — use that path here.
+        "description": "Local AWS, Azure, and GCP audit/security events (NL narratives)",
         "category": "cybersecurity",
         "max_tokens": 100_000_000,
-        "local_paths": ["data/cloud/*.json"],
+        "local_paths": ["data/cloud_nl/*.jsonl"],
     },
     "local_security_logs": {
         "source_type": "local_files",
-        "description": "Local auth, web, Windows, Sysmon, CEF, and network security logs",
+        # Raw log files (auth.log, sysmon.xml, conn.log, etc.) are converted to natural
+        # language narratives by scripts/data/convert_logs_to_nl.py before training.
+        # Run: python -m scripts.data.convert_logs_to_nl
+        # Output goes to data/log_nl/*.jsonl — use that path here.
+        "description": "Local auth, web, Windows, Sysmon, CEF, and network security logs (NL narratives)",
         "category": "cybersecurity",
         "max_tokens": 100_000_000,
         "local_paths": [
-            "data/log/*.log",
-            "data/log/*.jsonl",
-            "data/log/*.xml",
+            "data/log_nl/*.jsonl",
         ],
     },
     # =========================================================================
@@ -1867,8 +1873,8 @@ def interleaved_shuffle_main(args, source_names, output_dir):
     stats = defaultdict(lambda: {"docs": 0, "chars": 0})
     global_max_chars = int(args.max_tokens * CHARS_PER_TOKEN) if args.max_tokens else None
     global_chars = 0
-    cluster_size = getattr(args, 'cluster_size', 8)  # docs of same domain per run
-    temperature = getattr(args, 'sampling_temperature', 1.0)
+    cluster_size = getattr(args, 'cluster_size', 32)  # docs of same domain per run
+    temperature = getattr(args, 'sampling_temperature', 1.2)
 
     checkpoint_dir = args.checkpoint_dir or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     checkpoint_every_bytes = int(args.checkpoint_every_gb * 1024 * 1024 * 1024)
@@ -2060,12 +2066,12 @@ def main():
                         choices=["sequential", "interleaved"],
                         help="'interleaved' = domain-mixed shards (recommended), "
                              "'sequential' = one source at a time (legacy)")
-    parser.add_argument("--cluster-size", type=int, default=8,
+    parser.add_argument("--cluster-size", type=int, default=32,
                         help="Number of consecutive docs from same domain per run "
-                             "in interleaved mode (default: 8, provides locality)")
-    parser.add_argument("--sampling-temperature", type=float, default=1.0,
+                             "in interleaved mode (default: 32, higher = smoother domain transitions)")
+    parser.add_argument("--sampling-temperature", type=float, default=1.2,
                         help="Temperature for domain sampling weights. "
-                             ">1.0 = more uniform, <1.0 = sharper (favor high-weight domains)")
+                             ">1.0 = more uniform (reduces domain burst spikes), <1.0 = sharper (favor high-weight domains)")
     args = parser.parse_args()
 
     base_dir = get_base_dir()

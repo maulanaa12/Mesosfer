@@ -1,0 +1,1 @@
+{"text": "On May 16 at 01:00:01, host db-backup01 logged routine system activity: (root) CMD (/usr/local/bin/backup.sh); Starting incremental backup for /var/lib/mysql; Archive created: /backup/mysql_inc_20260516.tar.gz. No indicators of compromise were identified in this event group."}
