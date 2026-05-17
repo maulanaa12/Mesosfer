@@ -15,6 +15,7 @@ import os
 import json
 import glob
 import shutil
+import subprocess
 import argparse
 import logging
 import time
@@ -25,6 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from collections import defaultdict
 from collections.abc import Mapping
+from fnmatch import fnmatch
 from pathlib import Path
 
 import pandas as pd
@@ -398,6 +400,9 @@ DOMAIN_SAMPLING_WEIGHTS = {
     "circl_vuln_patch":        2.3,
     "nist_cybersec":           1.8,
     "fenrir_v2":               1.9,
+    "primus_nemotron_cc":      2.1,
+    "primus_fineweb":          1.9,
+    "cybernative_vuln_dpo":    2.0,
     "nvd_cve":                 1.8,
     "local_incident_response": 2.2,
     "local_soc_synthetic":     2.1,
@@ -496,6 +501,34 @@ DATASET_SOURCES = {
         "split": "train",
         "streaming": False,
         "format": "chat",
+    },
+    "primus_nemotron_cc": {
+        "hf_name": "trend-cybertron/Primus-Nemotron-CC",
+        "description": "7.6B tokens of cybersecurity text filtered from Nemotron-CC (gated, requires HF token)",
+        "category": "cybersecurity",
+        "max_tokens": 1_500_000_000,
+        "text_column": "text",
+        "split": "train",
+        "streaming": True,
+    },
+    "primus_fineweb": {
+        "hf_name": "trendmicro-ailab/Primus-FineWeb",
+        "description": "Cybersecurity-filtered FineWeb pretraining corpus (gated, requires HF token)",
+        "category": "cybersecurity",
+        "max_tokens": 800_000_000,
+        "text_column": "text",
+        "split": "train",
+        "streaming": True,
+    },
+    "cybernative_vuln_dpo": {
+        "hf_name": "CyberNative/Code_Vulnerability_Security_DPO",
+        "description": "Synthetic vulnerable vs fixed code pairs across many languages",
+        "category": "cybersecurity",
+        "max_tokens": 30_000_000,
+        "text_column": None,
+        "split": "train",
+        "streaming": False,
+        "format": "dpo",
     },
     "nvd_cve": {
         "source_type": "circl_ndjson_dump",
@@ -1482,6 +1515,120 @@ def is_high_quality_security_text(text, source_name):
     return True
 
 
+def _github_clone_dir(repo):
+    """Get cache directory for cloned github repo."""
+    base_dir = get_base_dir()
+    cache_root = os.path.join(base_dir, "github_cache")
+    os.makedirs(cache_root, exist_ok=True)
+    safe_name = repo.replace("/", "__")
+    return os.path.join(cache_root, safe_name)
+
+
+def _git_clone_or_pull(repo, target_dir):
+    """Shallow clone repo if not exists, otherwise just verify it exists.
+
+    Uses --depth=1 to minimize disk usage. Returns True on success.
+    """
+    if os.path.exists(os.path.join(target_dir, ".git")):
+        logger.info(f"  Repo cache hit: {target_dir}")
+        return True
+
+    if os.path.exists(target_dir):
+        # Stale dir without .git — remove and re-clone
+        shutil.rmtree(target_dir, ignore_errors=True)
+
+    url = f"https://github.com/{repo}.git"
+    logger.info(f"  Cloning {url} (shallow) into {target_dir}")
+    try:
+        subprocess.run(
+            ["git", "clone", "--depth=1", "--quiet", url, target_dir],
+            check=True,
+            timeout=600,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"  git clone failed for {repo}: {e.stderr.decode(errors='replace')[:500]}")
+        return False
+    except subprocess.TimeoutExpired:
+        logger.warning(f"  git clone timed out for {repo}")
+        return False
+    except FileNotFoundError:
+        logger.warning("  git command not found — install git to use github_repo sources")
+        return False
+
+
+def _iter_repo_files(repo_dir, include_patterns):
+    """Yield file paths in repo_dir matching any of the glob patterns.
+
+    Patterns use ** for recursive match (e.g. 'rules/**/*.yml').
+    Skips .git directory.
+    """
+    repo_path = Path(repo_dir)
+    seen = set()
+    for pattern in include_patterns:
+        # Path.glob handles ** when used with rglob-style pattern
+        for path in repo_path.glob(pattern):
+            if not path.is_file():
+                continue
+            if ".git" in path.parts:
+                continue
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            yield path
+
+
+def stream_github_repo_texts(source_name, source_config, max_chars):
+    """Yield pretraining text from files in a cloned GitHub repo."""
+    repo = source_config["repo"]
+    include_patterns = source_config.get("include", [])
+    if not include_patterns:
+        logger.warning(f"  {source_name}: no include patterns configured, skipping")
+        return
+
+    target_dir = _github_clone_dir(repo)
+    if not _git_clone_or_pull(repo, target_dir):
+        return
+
+    char_count = 0
+    doc_count = 0
+
+    for path in _iter_repo_files(target_dir, include_patterns):
+        try:
+            # Skip files larger than 1MB (likely binary/blob)
+            if path.stat().st_size > 1_000_000:
+                continue
+            with open(path, encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except (OSError, UnicodeDecodeError) as e:
+            logger.debug(f"  Failed to read {path}: {e}")
+            continue
+
+        text = content.strip()
+        if len(text) < 50:
+            continue
+
+        # Add file context as prefix
+        rel_path = path.relative_to(target_dir)
+        labeled = f"# Source: {repo}\n# File: {rel_path}\n\n{text}"
+
+        if not is_high_quality_security_text(labeled, source_name):
+            continue
+
+        if char_count + len(labeled) > max_chars:
+            break
+
+        char_count += len(labeled)
+        doc_count += 1
+        yield labeled
+
+    est_tokens = int(char_count / CHARS_PER_TOKEN)
+    logger.info(f"  ✓ {source_name} github_repo complete: {doc_count:,} docs, ~{est_tokens:,} tokens")
+
+
 def stream_dataset_texts(source_name, source_config, global_max_tokens=None, skip_docs=0):
     max_tokens = source_config.get("max_tokens")
     if global_max_tokens is not None and max_tokens is not None:
@@ -1506,7 +1653,10 @@ def stream_dataset_texts(source_name, source_config, global_max_tokens=None, ski
     if source_type == "url_json":
         yield from stream_url_json_texts(source_name, source_config, max_chars)
         return
-    if source_type in {"github_repo", "pdf_manifest"}:
+    if source_type == "github_repo":
+        yield from stream_github_repo_texts(source_name, source_config, max_chars)
+        return
+    if source_type == "pdf_manifest":
         logger.warning("Source type %s for %s is registered for dry-run/planning but has no downloader yet.", source_type, source_name)
         return
 
