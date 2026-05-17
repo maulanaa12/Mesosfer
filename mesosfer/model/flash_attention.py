@@ -209,6 +209,19 @@ def flash_attn_func(q, k, v, causal=False, window_size=(-1, -1)):
     if ATTENTION_BACKEND == "fa3":
         return _fa3.flash_attn_func(q, k, v, causal=causal, window_size=window_size)
     if ATTENTION_BACKEND == "fa2":
+        # ROCm Triton FA2 doesn't support sliding window backward yet; it requires
+        # window_size=(-1, -1) to take the full-attention code path. If the caller
+        # passes (-1, 0) or (>=seq_len, 0) for "L"-pattern layers, normalize to
+        # (-1, -1) so the backend treats it as full attention. Causality is still
+        # enforced by causal=True. Genuine sliding window (window>0 and < seq_len)
+        # will still hit NotImplementedError on ROCm and should be avoided there.
+        if _is_rocm():
+            seq_len = q.size(1)
+            left, right = window_size
+            is_full_left = (left < 0) or (left >= seq_len)
+            is_full_right = (right < 0) or (right >= seq_len) or (right == 0 and causal)
+            if is_full_left and is_full_right:
+                return _fa2.flash_attn_func(q, k, v, causal=causal, window_size=(-1, -1))
         return _fa2.flash_attn_func(q, k, v, causal=causal, window_size=window_size)
 
     # SDPA fallback: transpose (B, T, H, D) -> (B, H, T, D)
