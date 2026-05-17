@@ -6,9 +6,9 @@ python -m scripts.chat_cli
 """
 import argparse
 import torch
-from ozon.utils.common import compute_init, autodetect_device_type
-from ozon.eval.engine import Engine
-from ozon.utils.checkpoint_manager import load_model
+from mesosfer.utils.common import compute_init, autodetect_device_type
+from mesosfer.eval.engine import Engine
+from mesosfer.utils.checkpoint_manager import load_model
 
 parser = argparse.ArgumentParser(description='Chat with the model')
 parser.add_argument('-i', '--source', type=str, default="sft", help="Source of the model: sft|rl")
@@ -34,7 +34,7 @@ assistant_start, assistant_end = tokenizer.encode_special("<|assistant_start|>")
 # Create Engine for efficient generation
 engine = Engine(model, tokenizer)
 
-print("\nozon Interactive Mode")
+print("\nmesosfer Interactive Mode")
 print("-" * 50)
 print("Type 'quit' or 'exit' to end the conversation")
 print("Type 'clear' to start a new conversation")

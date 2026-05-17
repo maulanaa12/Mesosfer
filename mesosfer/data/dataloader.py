@@ -13,14 +13,14 @@ there are fewer "confusing" tokens in the train/val batches as every token can
 now attend back to the BOS token and sees the full context of the document.
 
 Fallback to the original if you have very limited data AND long documents:
-https://github.com/karpathy/ozon/blob/3c3a3d7/ozon/dataloader.py#L78-L117
+https://github.com/karpathy/mesosfer/blob/3c3a3d7/mesosfer/dataloader.py#L78-L117
 """
 
 import torch
 import pyarrow.parquet as pq
 
-from ozon.utils.common import get_dist_info
-from ozon.data.dataset import list_parquet_files
+from mesosfer.utils.common import get_dist_info
+from mesosfer.data.dataset import list_parquet_files
 
 def _document_batches(split, resume_state_dict, tokenizer_batch_size):
     """

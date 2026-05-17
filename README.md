@@ -1,8 +1,8 @@
-# Ozon
+# mesosfer
 
 A minimal full-stack ChatGPT clone for training small-to-medium language models.
 
-Ozon is inspired by [nanoGPT](https://github.com/karpathy/nanoGPT) and follows Andrej Karpathy's educational approach to LLM training: clean, readable code that actually works.
+mesosfer is inspired by [nanoGPT](https://github.com/karpathy/nanoGPT) and follows Andrej Karpathy's educational approach to LLM training: clean, readable code that actually works.
 
 ## Features
 
@@ -43,8 +43,8 @@ Ozon is inspired by [nanoGPT](https://github.com/karpathy/nanoGPT) and follows A
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/ozon.git
-cd ozon
+git clone https://github.com/your-repo/mesosfer.git
+cd mesosfer
 
 # Install uv (if needed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -83,8 +83,8 @@ python -m scripts.chat_web
 ## Project Structure
 
 ```
-ozon/
-├── ozon/
+mesosfer/
+├── mesosfer/
 │   ├── model/          # GPT model, attention, optimization
 │   ├── data/           # Dataset download and preprocessing
 │   ├── eval/           # Evaluation metrics
@@ -136,13 +136,13 @@ python -m scripts.base_train -- \
 
 ```bash
 # Backend selection (auto-detected if not set)
-export OZON_TORCH_BACKEND=cuda    # cuda, rocm, cpu
+export mesosfer_TORCH_BACKEND=cuda    # cuda, rocm, cpu
 
 # Compute dtype override
-export ozon_DTYPE=bfloat16        # bfloat16, float16, float32
+export mesosfer_DTYPE=bfloat16        # bfloat16, float16, float32
 
 # Cache directory
-export ozon_BASE_DIR="$HOME/.cache/ozon"
+export mesosfer_BASE_DIR="$HOME/.cache/mesosfer"
 
 # Wandb logging
 export WANDB_RUN=my_training_run
@@ -180,7 +180,7 @@ ruff check .
 | Model | Parameters | Tokens | Validation BPB | CORE Score |
 |-------|-----------|--------|----------------|------------|
 | GPT-2 (reference) | ~124M | ~5B | ~0.97 | ~25 |
-| Ozon (speedrun) | ~350M | ~2.8B | ~0.95 | ~28 |
+| mesosfer (speedrun) | ~350M | ~2.8B | ~0.95 | ~28 |
 
 > CORE score: average of MMLU (5-shot), GSM8K (COT), ARC-C, HumanEval (pass@1)
 

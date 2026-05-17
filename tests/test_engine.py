@@ -5,7 +5,7 @@ python -m pytest tests/test_engine.py -v
 """
 
 import torch
-from ozon.eval.engine import KVCache, Engine
+from mesosfer.eval.engine import KVCache, Engine
 from dataclasses import dataclass
 
 

@@ -1,6 +1,6 @@
-# Running Ozon on AMD GPUs
+# Running mesosfer on AMD GPUs
 
-This guide covers the setup and execution of Ozon on AMD GPUs using ROCm.
+This guide covers the setup and execution of mesosfer on AMD GPUs using ROCm.
 
 ## Prerequisites
 
@@ -72,7 +72,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### 3. Create Virtual Environment
 
 ```bash
-cd /path/to/ozon
+cd /path/to/mesosfer
 uv venv
 source .venv/bin/activate
 ```
@@ -105,7 +105,7 @@ python -c "import torch; print(f'GPU: {torch.cuda.get_device_name(0)}')"
 
 ```bash
 # Set backend explicitly (required for AMD)
-export OZON_TORCH_BACKEND=rocm
+export mesosfer_TORCH_BACKEND=rocm
 
 # Optimize memory allocator
 export PYTORCH_ALLOC_CONF="expandable_segments:True"
@@ -121,10 +121,10 @@ export HIP_VISIBLE_DEVICES=0,1,2,3  # Select GPUs (0-indexed)
 
 ```bash
 # Override compute dtype (bfloat16 recommended for AMD)
-export ozon_DTYPE=bfloat16
+export mesosfer_DTYPE=bfloat16
 
-# Cache directory (default: ~/.cache/ozon)
-export ozon_BASE_DIR="$HOME/.cache/ozon"
+# Cache directory (default: ~/.cache/mesosfer)
+export mesosfer_BASE_DIR="$HOME/.cache/mesosfer"
 
 # Weights & Biases logging
 export WANDB_RUN=my_training_run
@@ -156,7 +156,7 @@ Latest AMD compute GPUs with highest performance:
 - ROCm 6.4+ required
 
 ```bash
-export OZON_TORCH_BACKEND=rocm
+export mesosfer_TORCH_BACKEND=rocm
 export ROCM_BLIS_LC=1
 
 # 8-GPU configuration
@@ -238,7 +238,7 @@ screen -L -Logfile runs/speedrun.log -S speedrun bash runs/speedrun.sh
 ```bash
 export NPROC_PER_NODE=8
 export WANDB_RUN=scaling_rocm
-export ozon_BASE_DIR="$HOME/.cache/ozon"
+export mesosfer_BASE_DIR="$HOME/.cache/mesosfer"
 
 bash runs/scaling_laws.sh
 ```
@@ -449,7 +449,7 @@ python -c "import torch; print(f'ROCm: {torch.cuda.is_available()}, Device: {tor
 python -c "import torch; print(f'Compute dtype: bfloat16')"
 
 # 4. Quick test run
-export OZON_TORCH_BACKEND=rocm
+export mesosfer_TORCH_BACKEND=rocm
 python -m scripts.base_train --depth=4 --num-iterations=10 --run=dummy --device-batch-size=1
 ```
 

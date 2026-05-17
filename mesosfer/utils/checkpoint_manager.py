@@ -8,10 +8,10 @@ import json
 import logging
 import torch
 
-from ozon.utils.common import get_base_dir
-from ozon.model.gpt import GPT, GPTConfig
-from ozon.data.tokenizer import get_tokenizer
-from ozon.utils.common import setup_default_logging
+from mesosfer.utils.common import get_base_dir
+from mesosfer.model.gpt import GPT, GPTConfig
+from mesosfer.data.tokenizer import get_tokenizer
+from mesosfer.utils.common import setup_default_logging
 
 # Set up logging
 setup_default_logging()
@@ -144,7 +144,7 @@ def find_last_step(checkpoint_dir):
     return last_step
 
 # -----------------------------------------------------------------------------
-# convenience functions that take into account ozon's directory structure
+# convenience functions that take into account mesosfer's directory structure
 
 def load_model_from_dir(checkpoints_dir, device, phase, model_tag=None, step=None):
     if model_tag is None:

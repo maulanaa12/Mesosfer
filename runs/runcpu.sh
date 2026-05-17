@@ -11,8 +11,8 @@
 # You may also want to run this script manually and one by one, copy pasting commands into your terminal.
 
 # all the setup stuff
-export ozon_BASE_DIR="$HOME/.cache/ozon"
-mkdir -p $ozon_BASE_DIR
+export mesosfer_BASE_DIR="$HOME/.cache/mesosfer"
+mkdir -p $mesosfer_BASE_DIR
 command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 [ -d ".venv" ] || uv venv
 uv sync --extra cpu
@@ -22,7 +22,7 @@ if [ -z "$WANDB_RUN" ]; then
 fi
 
 # train tokenizer on ~2B characters (~34 seconds on my MacBook Pro M3 Max)
-python -m ozon.data.dataset -n 8
+python -m mesosfer.data.dataset -n 8
 python -m scripts.tok_train --max-chars=2000000000
 python -m scripts.tok_eval
 
@@ -45,7 +45,7 @@ python -m scripts.base_train \
 python -m scripts.base_eval --device-batch-size=1 --split-tokens=16384 --max-per-task=16
 
 # SFT (~10 minutes on my MacBook Pro M3 Max)
-curl -L -o $ozon_BASE_DIR/identity_conversations.jsonl https://karpathy-public.s3.us-west-2.amazonaws.com/identity_conversations.jsonl
+curl -L -o $mesosfer_BASE_DIR/identity_conversations.jsonl https://karpathy-public.s3.us-west-2.amazonaws.com/identity_conversations.jsonl
 python -m scripts.chat_sft \
     --max-seq-len=512 \
     --device-batch-size=32 \

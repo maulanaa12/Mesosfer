@@ -106,7 +106,7 @@ class HuggingFaceTokenizer:
     def _encode_one(self, text, prepend=None, append=None, num_threads=None):
         # encode a single string
         # prepend/append can be either a string of a special token or a token id directly.
-        # num_threads is ignored (only used by the ozon Tokenizer for parallel encoding)
+        # num_threads is ignored (only used by the mesosfer Tokenizer for parallel encoding)
         assert isinstance(text, str)
         ids = []
         if prepend is not None:
@@ -203,7 +203,7 @@ class RustBPETokenizer:
         # tiktoken calls the special document delimiter token "<|endoftext|>"
         # yes this is confusing because this token is almost always PREPENDED to the beginning of the document
         # it most often is used to signal the start of a new sequence to the LLM during inference etc.
-        # so in ozon we always use "<|bos|>" short for "beginning of sequence", but historically it is often called "<|endoftext|>".
+        # so in mesosfer we always use "<|bos|>" short for "beginning of sequence", but historically it is often called "<|endoftext|>".
         return cls(enc, "<|endoftext|>")
 
     def get_vocab_size(self):
@@ -385,10 +385,10 @@ class RustBPETokenizer:
         return ids
 
 # -----------------------------------------------------------------------------
-# ozon-specific convenience functions
+# mesosfer-specific convenience functions
 
 def get_tokenizer():
-    from ozon.utils.common import get_base_dir
+    from mesosfer.utils.common import get_base_dir
     base_dir = get_base_dir()
     tokenizer_dir = os.path.join(base_dir, "tokenizer")
     # return HuggingFaceTokenizer.from_directory(tokenizer_dir)
@@ -396,7 +396,7 @@ def get_tokenizer():
 
 def get_token_bytes(device="cpu"):
     import torch
-    from ozon.utils.common import get_base_dir
+    from mesosfer.utils.common import get_base_dir
     base_dir = get_base_dir()
     tokenizer_dir = os.path.join(base_dir, "tokenizer")
     token_bytes_path = os.path.join(tokenizer_dir, "token_bytes.pt")

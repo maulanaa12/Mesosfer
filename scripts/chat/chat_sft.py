@@ -16,13 +16,13 @@ os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 import time
 import wandb
 import torch
-from ozon.utils.common import compute_init, compute_cleanup, print0, DummyWandb, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
-from ozon.data.tokenizer import get_token_bytes
-from ozon.utils.checkpoint_manager import save_checkpoint, load_model, load_optimizer_state
-from ozon.eval.loss_eval import evaluate_bpb
+from mesosfer.utils.common import compute_init, compute_cleanup, print0, DummyWandb, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
+from mesosfer.data.tokenizer import get_token_bytes
+from mesosfer.utils.checkpoint_manager import save_checkpoint, load_model, load_optimizer_state
+from mesosfer.eval.loss_eval import evaluate_bpb
 import torch.distributed as dist
-from ozon.model.flash_attention import ATTENTION_BACKEND, HAS_FA2, HAS_FA3, _is_rocm
-from ozon.eval.engine import Engine
+from mesosfer.model.flash_attention import ATTENTION_BACKEND, HAS_FA2, HAS_FA3, _is_rocm
+from mesosfer.eval.engine import Engine
 from scripts.chat_eval import run_chat_eval
 
 from tasks.common import TaskMixture
@@ -86,7 +86,7 @@ else:
 
 # wandb logging init
 use_dummy_wandb = args.run == "dummy" or not master_process
-wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(project="ozon-sft", name=args.run, config=user_config)
+wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(project="mesosfer-sft", name=args.run, config=user_config)
 
 # Flash Attention status
 if ATTENTION_BACKEND == "fa3":
@@ -515,7 +515,7 @@ print0(f"Total training time: {total_training_time/60:.2f}m")
 print0(f"Minimum validation bpb: {min_val_bpb:.4f}")
 
 # Log to report
-from ozon.utils.report import get_report
+from mesosfer.utils.report import get_report
 get_report().log(section="SFT", data=[
     user_config, # CLI args
     { # stats about the training setup

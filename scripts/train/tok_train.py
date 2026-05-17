@@ -6,9 +6,9 @@ import os
 import time
 import argparse
 import torch
-from ozon.data.tokenizer import RustBPETokenizer
-from ozon.utils.common import get_base_dir
-from ozon.data.dataset import parquets_iter_batched
+from mesosfer.data.tokenizer import RustBPETokenizer
+from mesosfer.utils.common import get_base_dir
+from mesosfer.data.dataset import parquets_iter_batched
 
 # -----------------------------------------------------------------------------
 # Parse command line arguments
@@ -91,7 +91,7 @@ with open(token_bytes_path, "wb") as f:
 print(f"Saved token_bytes to {token_bytes_path}")
 
 # Log to report
-from ozon.utils.report import get_report
+from mesosfer.utils.report import get_report
 token_bytes_nonzero = (token_bytes[token_bytes > 0]).to(dtype=torch.float32)
 get_report().log(section="Tokenizer training", data=[
     vars(args), # argparse command line arguments

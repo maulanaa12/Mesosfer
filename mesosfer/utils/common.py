@@ -1,5 +1,5 @@
 """
-Common utilities for ozon.
+Common utilities for mesosfer.
 """
 
 import os
@@ -12,7 +12,7 @@ from filelock import FileLock
 
 # The dtype used for compute (matmuls, activations). Master weights stay fp32 for optimizer precision.
 # Linear layers cast their weights to this dtype in forward, replacing torch.amp.autocast.
-# Override with ozon_DTYPE env var: "bfloat16", "float16", "float32"
+# Override with mesosfer_DTYPE env var: "bfloat16", "float16", "float32"
 _DTYPE_MAP = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
 
 
@@ -29,9 +29,9 @@ def get_torch_accelerator_backend() -> str:
 
 
 def _detect_compute_dtype():
-    env = os.environ.get("ozon_DTYPE")
+    env = os.environ.get("mesosfer_DTYPE")
     if env is not None:
-        return _DTYPE_MAP[env], f"set via ozon_DTYPE={env}"
+        return _DTYPE_MAP[env], f"set via mesosfer_DTYPE={env}"
     if torch.cuda.is_available():
         if is_rocm_torch():
             # ROCm exposes AMD GPUs through PyTorch's cuda API. CDNA GPUs such as
@@ -43,7 +43,7 @@ def _detect_compute_dtype():
         if capability >= (8, 0):
             return torch.bfloat16, f"auto-detected: CUDA SM {capability[0]}{capability[1]} (bf16 supported)"
         # fp16 training requires GradScaler (not yet implemented), so fall back to fp32.
-        # Users can still force fp16 via ozon_DTYPE=float16 if they know what they're doing.
+        # Users can still force fp16 via mesosfer_DTYPE=float16 if they know what they're doing.
         return torch.float32, f"auto-detected: CUDA SM {capability[0]}{capability[1]} (pre-Ampere, bf16 not supported, using fp32)"
     return torch.float32, "auto-detected: no CUDA (CPU/MPS)"
 COMPUTE_DTYPE, COMPUTE_DTYPE_REASON = _detect_compute_dtype()
@@ -86,15 +86,15 @@ setup_default_logging()
 logger = logging.getLogger(__name__)
 
 def get_base_dir():
-    # co-locate ozon intermediates with other cached data in ~/.cache (by default)
-    if os.environ.get("ozon_BASE_DIR"):
-        ozon_dir = os.environ.get("ozon_BASE_DIR")
+    # co-locate mesosfer intermediates with other cached data in ~/.cache (by default)
+    if os.environ.get("mesosfer_BASE_DIR"):
+        mesosfer_dir = os.environ.get("mesosfer_BASE_DIR")
     else:
         home_dir = os.path.expanduser("~")
         cache_dir = os.path.join(home_dir, ".cache")
-        ozon_dir = os.path.join(cache_dir, "ozon")
-    os.makedirs(ozon_dir, exist_ok=True)
-    return ozon_dir
+        mesosfer_dir = os.path.join(cache_dir, "mesosfer")
+    os.makedirs(mesosfer_dir, exist_ok=True)
+    return mesosfer_dir
 
 def download_file_with_lock(url, filename, postprocess_fn=None):
     """
@@ -245,7 +245,7 @@ class DummyWandb:
 
 # hardcoded BF16 peak flops for various GPUs
 # inspired by torchtitan: https://github.com/pytorch/torchtitan/blob/main/torchtitan/tools/utils.py
-# and PR: https://github.com/karpathy/ozon/pull/147
+# and PR: https://github.com/karpathy/mesosfer/pull/147
 def get_peak_flops(device_name: str) -> float:
     name = device_name.lower()
 

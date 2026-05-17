@@ -34,17 +34,17 @@ except ModuleNotFoundError:
     load_dataset = None
 
 try:
-    from ozon.utils.common import get_base_dir
+    from mesosfer.utils.common import get_base_dir
 except ModuleNotFoundError:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     def get_base_dir():
-        if os.environ.get("ozon_BASE_DIR"):
-            ozon_dir = os.environ["ozon_BASE_DIR"]
+        if os.environ.get("mesosfer_BASE_DIR"):
+            mesosfer_dir = os.environ["mesosfer_BASE_DIR"]
         else:
-            ozon_dir = os.path.join(os.path.expanduser("~"), ".cache", "ozon")
-        os.makedirs(ozon_dir, exist_ok=True)
-        return ozon_dir
+            mesosfer_dir = os.path.join(os.path.expanduser("~"), ".cache", "mesosfer")
+        os.makedirs(mesosfer_dir, exist_ok=True)
+        return mesosfer_dir
 
 logger = logging.getLogger(__name__)
 
@@ -2037,7 +2037,7 @@ def interleaved_shuffle_main(args, source_names, output_dir):
 def main():
     parser = argparse.ArgumentParser(description="Download and prepare the Atmosfer cybersecurity pretraining dataset")
     parser.add_argument("--output-dir", type=str, default="base_data_cybersecurity",
-                        help="Output directory name under ozon_BASE_DIR")
+                        help="Output directory name under mesosfer_BASE_DIR")
     parser.add_argument("--max-tokens", type=int, default=None,
                         help="Global maximum tokens across ALL sources")
     parser.add_argument("--shard-size", type=int, default=100_000,
@@ -2382,7 +2382,7 @@ def verify_shard_balance(data_dir):
               f"~{rows_per_gpu:,} rows/GPU")
 
     print()
-    print("  📝 Note: ozon's dataloader auto-distributes row_groups")
+    print("  📝 Note: mesosfer's dataloader auto-distributes row_groups")
     print("     round-robin across GPUs (rank 0 gets rg 0,2,4,...)")
     print("     No manual data splitting needed — just run with torchrun!")
     print()

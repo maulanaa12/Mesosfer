@@ -15,10 +15,10 @@ WANDB_RUN="${WANDB_RUN:-scaling_${LABEL}}"
 EVAL_TOKENS=$((100 * 524288))  # ~100M tokens for final eval (default is ~10M)
 
 export OMP_NUM_THREADS=1
-export ozon_BASE_DIR="${ozon_BASE_DIR:-$HOME/.cache/ozon}"
+export mesosfer_BASE_DIR="${mesosfer_BASE_DIR:-$HOME/.cache/mesosfer}"
 source .venv/bin/activate
 
-RESULTS_DIR="$ozon_BASE_DIR/scaling_laws_results_${LABEL}"
+RESULTS_DIR="$mesosfer_BASE_DIR/scaling_laws_results_${LABEL}"
 mkdir -p "$RESULTS_DIR"
 RESULTS_FILE="$RESULTS_DIR/results.csv"
 

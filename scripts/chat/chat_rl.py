@@ -22,9 +22,9 @@ import itertools
 import wandb
 import torch
 import torch.distributed as dist
-from ozon.utils.common import compute_init, compute_cleanup, print0, get_base_dir, DummyWandb, autodetect_device_type
-from ozon.utils.checkpoint_manager import save_checkpoint, load_model
-from ozon.eval.engine import Engine
+from mesosfer.utils.common import compute_init, compute_cleanup, print0, get_base_dir, DummyWandb, autodetect_device_type
+from mesosfer.utils.checkpoint_manager import save_checkpoint, load_model
+from mesosfer.eval.engine import Engine
 from tasks.gsm8k import GSM8K
 
 # -----------------------------------------------------------------------------
@@ -68,7 +68,7 @@ master_process = ddp_rank == 0 # this process will do logging, checkpointing etc
 
 # wandb logging init
 use_dummy_wandb = args.run == "dummy" or not master_process
-wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(project="ozon-rl", name=args.run, config=user_config)
+wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(project="mesosfer-rl", name=args.run, config=user_config)
 
 # Init model and tokenizer
 model, tokenizer, meta = load_model("sft", device, phase="eval", model_tag=args.model_tag, step=args.model_step)
@@ -323,7 +323,7 @@ for step in range(num_steps):
         print(f"✅ Saved model checkpoint to {checkpoint_dir}")
 
 # Log to report
-from ozon.utils.report import get_report
+from mesosfer.utils.report import get_report
 get_report().log(section="Chat RL", data=[
     user_config, # CLI args
 ])

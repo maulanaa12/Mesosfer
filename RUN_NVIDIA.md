@@ -1,6 +1,6 @@
-# Running Ozon on NVIDIA GPUs
+# Running mesosfer on NVIDIA GPUs
 
-This guide covers the setup and execution of Ozon on NVIDIA GPUs using CUDA.
+This guide covers the setup and execution of mesosfer on NVIDIA GPUs using CUDA.
 
 ## Prerequisites
 
@@ -53,7 +53,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### 2. Create Virtual Environment
 
 ```bash
-cd /path/to/ozon
+cd /path/to/mesosfer
 uv venv
 source .venv/bin/activate
 ```
@@ -74,7 +74,7 @@ This installs PyTorch with CUDA 12.8 support from PyPI.
 
 ```bash
 # Set backend explicitly (optional, auto-detected)
-export OZON_TORCH_BACKEND=cuda
+export mesosfer_TORCH_BACKEND=cuda
 
 # Optimize memory allocator
 export PYTORCH_ALLOC_CONF="expandable_segments:True"
@@ -88,10 +88,10 @@ export OMP_NUM_THREADS=1
 ```bash
 # Override compute dtype: bfloat16, float16, float32
 # Note: Use float16 for T4 (no bf16 support)
-export ozon_DTYPE=bfloat16
+export mesosfer_DTYPE=bfloat16
 
-# Cache directory (default: ~/.cache/ozon)
-export ozon_BASE_DIR="$HOME/.cache/ozon"
+# Cache directory (default: ~/.cache/mesosfer)
+export mesosfer_BASE_DIR="$HOME/.cache/mesosfer"
 
 # Weights & Biases logging
 export WANDB_RUN=my_training_run
@@ -158,11 +158,11 @@ torchrun --standalone --nproc_per_node=4 -m scripts.base_train -- \
 - Flash Attention SDPA fallback only
 - No TF32 acceleration
 - Inference-optimized, training will be slower
-- Set `ozon_DTYPE=float16` explicitly
+- Set `mesosfer_DTYPE=float16` explicitly
 
 ```bash
 # T4 optimized settings
-export ozon_DTYPE=float16
+export mesosfer_DTYPE=float16
 export PYTORCH_ALLOC_CONF="expandable_segments:True,max_split_size_mb=512"
 
 # Single T4 training (small model recommended)
@@ -207,7 +207,7 @@ Analyzes optimal model configurations across FLOP budgets.
 # Customize via environment variables
 export NPROC_PER_NODE=8
 export WANDB_RUN=scaling_jan26
-export ozon_BASE_DIR="$HOME/.cache/ozon"
+export mesosfer_BASE_DIR="$HOME/.cache/mesosfer"
 
 bash runs/scaling_laws.sh
 ```
@@ -215,7 +215,7 @@ bash runs/scaling_laws.sh
 **Key configurations:**
 - FLOP budgets: 1e18, 2.15e18, 4.64e18, 1e19
 - Depths: 10, 12, 14, 16, 18, 20
-- Results saved to `~/.cache/ozon/scaling_laws_results_<label>/results.csv`
+- Results saved to `~/.cache/mesosfer/scaling_laws_results_<label>/results.csv`
 
 ### Miniseries (Multiple Depth Sweep)
 
@@ -368,7 +368,7 @@ pip install flash-attn --no-build-isolation
 
 1. **Force float16:**
    ```bash
-   export ozon_DTYPE=float16
+   export mesosfer_DTYPE=float16
    ```
 
 2. **Check memory fragmentation:**
@@ -447,7 +447,7 @@ python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, Device: {tor
 python -c "import torch; print(f'Compute dtype: {torch.float32 if not torch.cuda.is_available() else torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16}')"
 
 # 3. Verify Flash Attention
-python -c "from ozon.model.flash_attention import flash_attn_func; print('Flash Attention available')"
+python -c "from mesosfer.model.flash_attention import flash_attn_func; print('Flash Attention available')"
 
 # 4. Quick test run
 python -m scripts.base_train --depth=4 --num-iterations=10 --run=dummy --device-batch-size=1

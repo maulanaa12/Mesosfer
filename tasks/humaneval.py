@@ -6,7 +6,7 @@ It is a coding benchmark.
 
 import re
 from datasets import load_dataset
-from ozon.eval.execution import execute_code
+from mesosfer.eval.execution import execute_code
 from tasks.common import Task
 
 def extract_imports(prompt):

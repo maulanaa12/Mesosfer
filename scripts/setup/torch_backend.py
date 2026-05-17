@@ -30,11 +30,11 @@ def detect_backend(
 ) -> str:
     """Return `cuda`, `rocm`, or `cpu` based on local accelerator signals."""
     env = os.environ if env is None else env
-    override = env.get("OZON_TORCH_BACKEND", "").strip().lower()
+    override = env.get("mesosfer_TORCH_BACKEND", "").strip().lower()
     if override:
         if override not in VALID_BACKENDS:
             valid = ", ".join(sorted(VALID_BACKENDS))
-            raise ValueError(f"OZON_TORCH_BACKEND must be one of: {valid}")
+            raise ValueError(f"mesosfer_TORCH_BACKEND must be one of: {valid}")
         return override
 
     if command_exists("nvidia-smi"):

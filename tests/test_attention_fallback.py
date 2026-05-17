@@ -15,9 +15,9 @@ Note on test structure:
 """
 import torch
 import pytest
-import ozon.model.flash_attention as fa_module
-from ozon.model.flash_attention import flash_attn, HAS_FA3
-from ozon.eval.engine import KVCache
+import mesosfer.model.flash_attention as fa_module
+from mesosfer.model.flash_attention import flash_attn, HAS_FA3
+from mesosfer.eval.engine import KVCache
 
 
 def set_impl(impl):

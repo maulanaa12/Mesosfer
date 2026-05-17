@@ -13,7 +13,7 @@ Examples:
     # Evaluate a HuggingFace model (e.g. GPT-2 124M) using 8 GPUs
     torchrun --nproc_per_node=8 -m scripts.base_eval --hf-path openai-community/gpt2
 
-    # Evaluate a ozon model (e.g. d24) using 8 GPUs
+    # Evaluate a mesosfer model (e.g. d24) using 8 GPUs
     torchrun --nproc_per_node=8 -m scripts.base_eval --model-tag d24 --device-batch-size=16
 
     # Quick/approximate evaluation using a single GPU
@@ -31,19 +31,19 @@ import tempfile
 import argparse
 import torch
 
-from ozon.utils.common import compute_init, compute_cleanup, print0, get_base_dir, autodetect_device_type, download_file_with_lock
-from ozon.data.tokenizer import HuggingFaceTokenizer, get_token_bytes
-from ozon.utils.checkpoint_manager import load_model
-from ozon.eval.core_eval import evaluate_task
-from ozon.data.dataloader import tokenizing_distributed_data_loader_bos_bestfit
-from ozon.eval.loss_eval import evaluate_bpb
-from ozon.eval.engine import Engine
+from mesosfer.utils.common import compute_init, compute_cleanup, print0, get_base_dir, autodetect_device_type, download_file_with_lock
+from mesosfer.data.tokenizer import HuggingFaceTokenizer, get_token_bytes
+from mesosfer.utils.checkpoint_manager import load_model
+from mesosfer.eval.core_eval import evaluate_task
+from mesosfer.data.dataloader import tokenizing_distributed_data_loader_bos_bestfit
+from mesosfer.eval.loss_eval import evaluate_bpb
+from mesosfer.eval.engine import Engine
 
 # -----------------------------------------------------------------------------
 # HuggingFace loading utilities
 
 class ModelWrapper:
-    """Lightweight wrapper to give HuggingFace models a ozon-compatible interface."""
+    """Lightweight wrapper to give HuggingFace models a mesosfer-compatible interface."""
     def __init__(self, model, max_seq_len=None):
         self.model = model
         self.max_seq_len = max_seq_len
@@ -179,7 +179,7 @@ def main():
     parser = argparse.ArgumentParser(description="Base model evaluation")
     parser.add_argument('--eval', type=str, default='core,bpb,sample', help='Comma-separated evaluations to run: core,bpb,sample (default: all)')
     parser.add_argument('--hf-path', type=str, default=None, help='HuggingFace model path (e.g. openai-community/gpt2-xl)')
-    parser.add_argument('--model-tag', type=str, default=None, help='ozon model tag to identify the checkpoint directory')
+    parser.add_argument('--model-tag', type=str, default=None, help='mesosfer model tag to identify the checkpoint directory')
     parser.add_argument('--step', type=int, default=None, help='Model step to load (default = last)')
     parser.add_argument('--max-per-task', type=int, default=-1, help='Max examples per CORE task (-1 = all)')
     parser.add_argument('--device-batch-size', type=int, default=32, help='Per-device batch size for BPB evaluation')
@@ -298,7 +298,7 @@ def main():
             print0(f"CORE metric: {core_results['core_metric']:.4f}")
 
     # --- Log to report ---
-    from ozon.utils.report import get_report
+    from mesosfer.utils.report import get_report
     report_data = [{"model": model_name}]
 
     if core_results:

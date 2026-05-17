@@ -5,7 +5,7 @@ Exports `flash_attn` module that matches the FA3-style API used by the model,
 preferring FA3, then FA2, then PyTorch SDPA.
 
 Usage (drop-in replacement for FA3):
-    from ozon.model.flash_attention import flash_attn
+    from mesosfer.model.flash_attention import flash_attn
 
     # Training (no KV cache)
     y = flash_attn.flash_attn_func(q, k, v, causal=True, window_size=window_size)
@@ -83,7 +83,7 @@ def _is_rocm():
 
 
 def _get_compute_dtype():
-    from ozon.utils.common import COMPUTE_DTYPE
+    from mesosfer.utils.common import COMPUTE_DTYPE
     return COMPUTE_DTYPE
 
 

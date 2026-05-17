@@ -17,8 +17,8 @@ import signal
 import warnings
 from contextlib import contextmanager
 from collections import deque
-from ozon.utils.common import compute_init, autodetect_device_type
-from ozon.utils.checkpoint_manager import load_model
+from mesosfer.utils.common import compute_init, autodetect_device_type
+from mesosfer.utils.checkpoint_manager import load_model
 
 # -----------------------------------------------------------------------------
 # Calculator tool helpers

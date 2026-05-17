@@ -25,14 +25,14 @@ import wandb
 import torch
 import torch.distributed as dist
 
-from ozon.model.gpt import GPT, GPTConfig, Linear
-from ozon.data.dataloader import tokenizing_distributed_data_loader_bos_bestfit, tokenizing_distributed_data_loader_with_state_bos_bestfit
-from ozon.utils.common import compute_init, compute_cleanup, print0, DummyWandb, print_banner, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
-from ozon.data.tokenizer import get_tokenizer, get_token_bytes
-from ozon.utils.checkpoint_manager import save_checkpoint, load_checkpoint
-from ozon.eval.loss_eval import evaluate_bpb
-from ozon.eval.engine import Engine
-from ozon.model.flash_attention import ATTENTION_BACKEND, HAS_FA2, HAS_FA3, _is_rocm
+from mesosfer.model.gpt import GPT, GPTConfig, Linear
+from mesosfer.data.dataloader import tokenizing_distributed_data_loader_bos_bestfit, tokenizing_distributed_data_loader_with_state_bos_bestfit
+from mesosfer.utils.common import compute_init, compute_cleanup, print0, DummyWandb, print_banner, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
+from mesosfer.data.tokenizer import get_tokenizer, get_token_bytes
+from mesosfer.utils.checkpoint_manager import save_checkpoint, load_checkpoint
+from mesosfer.eval.loss_eval import evaluate_bpb
+from mesosfer.eval.engine import Engine
+from mesosfer.model.flash_attention import ATTENTION_BACKEND, HAS_FA2, HAS_FA3, _is_rocm
 from scripts.base_eval import evaluate_core
 print_banner()
 
@@ -97,7 +97,7 @@ print0(f"COMPUTE_DTYPE: {COMPUTE_DTYPE} ({COMPUTE_DTYPE_REASON})")
 
 # wandb logging init
 use_dummy_wandb = args.run == "dummy" or not master_process
-wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(project="ozon", name=args.run, config=user_config)
+wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(project="mesosfer", name=args.run, config=user_config)
 
 # Flash Attention status
 if ATTENTION_BACKEND == "fa3":
@@ -175,7 +175,7 @@ if args.fp8:
         print0("Warning: FP8 training requires CUDA, ignoring --fp8 flag")
     else:
         # our custom fp8 is simpler than torchao, written for exact API compatibility
-        from ozon.model.fp8 import Float8LinearConfig, convert_to_float8_training
+        from mesosfer.model.fp8 import Float8LinearConfig, convert_to_float8_training
         # from torchao.float8 import Float8LinearConfig, convert_to_float8_training
         import torch.nn as nn
 
@@ -292,7 +292,7 @@ if total_batch_size == -1:
 batch_lr_scale = 1.0
 batch_ratio = total_batch_size / B_REF # B/B_ref
 if batch_ratio != 1.0:
-    # SGD: linear scaling with batch size is standard (not used in ozon)
+    # SGD: linear scaling with batch size is standard (not used in mesosfer)
     # AdamW: sqrt scaling is standard: η ∝ √(B/B_ref)
     # Muon: we will use the same scaling for Muon as for AdamW: η ∝ √(B/B_ref) (not studied carefully, assumption!)
     batch_lr_scale = batch_ratio ** 0.5 # η ∝ √(B/B_ref)
@@ -605,7 +605,7 @@ if val_bpb is not None:
     print0(f"Minimum validation bpb: {min_val_bpb:.6f}")
 
 # Log to report
-from ozon.utils.report import get_report
+from mesosfer.utils.report import get_report
 get_report().log(section="Base model training", data=[
     user_config, # CLI args
     { # stats about the training setup

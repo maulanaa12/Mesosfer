@@ -19,11 +19,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ozon.utils.common import get_dist_info, print0, COMPUTE_DTYPE
-from ozon.model.optim import MuonAdamW, DistMuonAdamW
+from mesosfer.utils.common import get_dist_info, print0, COMPUTE_DTYPE
+from mesosfer.model.optim import MuonAdamW, DistMuonAdamW
 
 # Our custom Flash Attention module that automatically uses FA3, then FA2, then SDPA fallback
-from ozon.model.flash_attention import flash_attn
+from mesosfer.model.flash_attention import flash_attn
 
 @dataclass
 class GPTConfig:

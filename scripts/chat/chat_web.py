@@ -44,9 +44,9 @@ from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, AsyncGenerator
 from dataclasses import dataclass
-from ozon.utils.common import compute_init, autodetect_device_type
-from ozon.utils.checkpoint_manager import load_model
-from ozon.eval.engine import Engine
+from mesosfer.utils.common import compute_init, autodetect_device_type
+from mesosfer.utils.checkpoint_manager import load_model
+from mesosfer.eval.engine import Engine
 
 # Abuse prevention limits
 MAX_MESSAGES_PER_REQUEST = 500
@@ -59,7 +59,7 @@ MAX_TOP_K = 200
 MIN_MAX_TOKENS = 1
 MAX_MAX_TOKENS = 4096
 
-parser = argparse.ArgumentParser(description='ozon Web Server')
+parser = argparse.ArgumentParser(description='mesosfer Web Server')
 parser.add_argument('-n', '--num-gpus', type=int, default=1, help='Number of GPUs to use (default: 1)')
 parser.add_argument('-i', '--source', type=str, default="sft", help="Source of the model: sft|rl")
 parser.add_argument('-t', '--temperature', type=float, default=0.8, help='Default temperature for generation')
@@ -216,7 +216,7 @@ def validate_chat_request(request: ChatRequest):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load models on all GPUs on startup."""
-    print("Loading ozon models across GPUs...")
+    print("Loading mesosfer models across GPUs...")
     app.state.worker_pool = WorkerPool(num_gpus=args.num_gpus)
     await app.state.worker_pool.initialize(args.source, model_tag=args.model_tag, step=args.step)
     print(f"Server ready at http://localhost:{args.port}")
@@ -235,7 +235,7 @@ app.add_middleware(
 @app.get("/")
 async def root():
     """Serve the chat UI."""
-    ui_html_path = os.path.join("ozon", "ui.html")
+    ui_html_path = os.path.join("mesosfer", "ui.html")
     with open(ui_html_path, "r", encoding="utf-8") as f:
         html_content = f.read()
     # Replace the API_URL to use the same origin
@@ -248,8 +248,8 @@ async def root():
 
 @app.get("/logo.svg")
 async def logo():
-    """Serve the ozon logo for favicon and header."""
-    logo_path = os.path.join("ozon", "logo.svg")
+    """Serve the mesosfer logo for favicon and header."""
+    logo_path = os.path.join("mesosfer", "logo.svg")
     return FileResponse(logo_path, media_type="image/svg+xml")
 
 async def generate_stream(
@@ -402,6 +402,6 @@ async def stats():
 
 if __name__ == "__main__":
     import uvicorn
-    print(f"Starting ozon Web Server")
+    print(f"Starting mesosfer Web Server")
     print(f"Temperature: {args.temperature}, Top-k: {args.top_k}, Max tokens: {args.max_tokens}")
     uvicorn.run(app, host=args.host, port=args.port)

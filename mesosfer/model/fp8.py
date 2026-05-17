@@ -1,4 +1,4 @@
-"""Minimal FP8 training for ozon — tensorwise dynamic scaling only.
+"""Minimal FP8 training for mesosfer — tensorwise dynamic scaling only.
 
 Drop-in replacement for torchao's Float8Linear (~2000 lines) with ~150 lines.
 We only need the "tensorwise" recipe (one scalar scale per tensor), not the full
@@ -72,7 +72,7 @@ generates a different graph. Numerics are bitwise identical in eager mode.
 import torch
 import torch.nn as nn
 
-from ozon.utils.common import COMPUTE_DTYPE
+from mesosfer.utils.common import COMPUTE_DTYPE
 
 # Avoid division by zero when computing scale from an all-zeros tensor
 EPS = 1e-12

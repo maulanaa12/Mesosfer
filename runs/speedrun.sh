@@ -10,10 +10,10 @@
 # 3) Example launch with wandb logging, but see below for setting up wandb first:
 # WANDB_RUN=speedrun screen -L -Logfile runs/speedrun.log -S speedrun bash runs/speedrun.sh
 
-# Default intermediate artifacts directory is in ~/.cache/ozon
+# Default intermediate artifacts directory is in ~/.cache/mesosfer
 export OMP_NUM_THREADS=1
-export ozon_BASE_DIR="$HOME/.cache/ozon"
-mkdir -p $ozon_BASE_DIR
+export mesosfer_BASE_DIR="$HOME/.cache/mesosfer"
+mkdir -p $mesosfer_BASE_DIR
 
 # -----------------------------------------------------------------------------
 # Python venv setup with uv
@@ -43,7 +43,7 @@ fi
 # During the course of the run, we will be writing markdown reports to the report/
 # directory in the base dir. This command clears it out and writes a header section
 # with a bunch of system info and a timestamp that marks the start of the run.
-python -m ozon.utils.report reset
+python -m mesosfer.utils.report reset
 
 # -----------------------------------------------------------------------------
 # Tokenizer
@@ -53,11 +53,11 @@ python -m ozon.utils.report reset
 # so we download 2e9 / 250e6 = 8 data shards at this point
 # each shard is ~100MB of text (compressed), so this is about ~800MB of data on disk
 # look at dev/repackage_data_reference.py for details on how this data was prepared
-python -m ozon.data.dataset -n 8
+python -m mesosfer.data.dataset -n 8
 # Immediately also kick off downloading more shards in the background while tokenizer trains
 # Approximately 150 shards are needed for GPT-2 capability pretraining, add 20 for padding.
 # The maximum total number of shards available in the entire dataset is 6542.
-python -m ozon.data.dataset -n 170 &
+python -m mesosfer.data.dataset -n 170 &
 DATASET_DOWNLOAD_PID=$!
 # train the tokenizer with vocab size 2**15 = 32768 on ~2B characters of data
 python -m scripts.tok_train
@@ -77,9 +77,9 @@ torchrun --standalone --nproc_per_node=8 -m scripts.base_eval -- --device-batch-
 # -----------------------------------------------------------------------------
 # SFT (teach the model conversation special tokens, tool use, multiple choice)
 
-# download 2.3MB of synthetic identity conversations to impart a personality to ozon
+# download 2.3MB of synthetic identity conversations to impart a personality to mesosfer
 # see dev/gen_synthetic_data.py for details on how this data was prepared and to get a sense of how you can easily tune it
-curl -L -o $ozon_BASE_DIR/identity_conversations.jsonl https://karpathy-public.s3.us-west-2.amazonaws.com/identity_conversations.jsonl
+curl -L -o $mesosfer_BASE_DIR/identity_conversations.jsonl https://karpathy-public.s3.us-west-2.amazonaws.com/identity_conversations.jsonl
 
 # run SFT and eval the model
 torchrun --standalone --nproc_per_node=8 -m scripts.chat_sft -- --device-batch-size=16 --run=$WANDB_RUN
@@ -94,4 +94,4 @@ torchrun --standalone --nproc_per_node=8 -m scripts.chat_eval -- -i sft
 # -----------------------------------------------------------------------------
 # Generate the full report by putting together all the sections
 # report.md is the output and will be copied to current directory for convenience
-python -m ozon.utils.report generate
+python -m mesosfer.utils.report generate

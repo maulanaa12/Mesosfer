@@ -3,7 +3,7 @@ from scripts.setup import torch_backend
 
 def test_backend_selector_prefers_explicit_override():
     backend = torch_backend.detect_backend(
-        env={"OZON_TORCH_BACKEND": "rocm"},
+        env={"mesosfer_TORCH_BACKEND": "rocm"},
         command_exists=lambda name: name == "nvidia-smi",
         path_exists=lambda path: False,
     )

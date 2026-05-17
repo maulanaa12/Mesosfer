@@ -6,8 +6,8 @@
 # Default series name is today's date (e.g., jan11)
 
 export OMP_NUM_THREADS=1
-export ozon_BASE_DIR="$HOME/.cache/ozon"
-mkdir -p $ozon_BASE_DIR
+export mesosfer_BASE_DIR="$HOME/.cache/mesosfer"
+mkdir -p $mesosfer_BASE_DIR
 
 # Setup (skip with SKIP_SETUP=1)
 if [ -z "$SKIP_SETUP" ]; then
@@ -19,7 +19,7 @@ if [ -z "$SKIP_SETUP" ]; then
 
     # Tokenizer, download 1000 shards for pretraining
     # (probably this can be reduced but it's tricky to determine the exact right number, TODO).
-    python -m ozon.data.dataset -n 1000
+    python -m mesosfer.data.dataset -n 1000
     python -m scripts.tok_train --max-chars=2000000000 --vocab-size=32768
 else
     source .venv/bin/activate
@@ -34,7 +34,7 @@ NPROC_PER_NODE="${NPROC_PER_NODE:-8}"
 # Logging
 WANDB_RUN="${WANDB_RUN:-${SERIES_NAME}_miniseries}"
 
-RESULTS_DIR="$ozon_BASE_DIR/${SERIES_NAME}_miniseries_results"
+RESULTS_DIR="$mesosfer_BASE_DIR/${SERIES_NAME}_miniseries_results"
 mkdir -p "$RESULTS_DIR"
 RESULTS_FILE="$RESULTS_DIR/results.csv"
 
