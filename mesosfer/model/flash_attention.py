@@ -20,6 +20,18 @@ import torch.nn.functional as F
 
 
 # =============================================================================
+# Helpers (defined first because backend loaders below depend on them)
+# =============================================================================
+def _is_rocm():
+    return bool(getattr(torch.version, "hip", None))
+
+
+def _get_compute_dtype():
+    from mesosfer.utils.common import COMPUTE_DTYPE
+    return COMPUTE_DTYPE
+
+
+# =============================================================================
 # Detection: Try to load Flash Attention backends
 # =============================================================================
 def _load_flash_attention_3():
@@ -76,15 +88,6 @@ HAS_FA2 = _fa2 is not None
 
 # Override for testing: set to 'fa3', 'fa2', 'sdpa', or None (auto)
 _override_impl = None
-
-
-def _is_rocm():
-    return bool(getattr(torch.version, "hip", None))
-
-
-def _get_compute_dtype():
-    from mesosfer.utils.common import COMPUTE_DTYPE
-    return COMPUTE_DTYPE
 
 
 def _flash_attention_dtype_supported(backend):

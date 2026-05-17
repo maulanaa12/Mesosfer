@@ -78,7 +78,7 @@ source .venv/bin/activate
 uv sync --extra rocm --no-build-isolation
 
 # Install Flash Attention 2 for ROCm (enables faster training vs SDPA fallback)
-pip install flash-attn --no-build-isolation
+uv pip install flash-attn --no-build-isolation
 ```
 
 > **Why `--no-build-isolation`?** The `PyTorch 2.6.0 - ROCm 7.0` image has torch
@@ -193,7 +193,7 @@ torchrun --standalone --nproc_per_node=1 -m scripts.base_train -- \
     --device-batch-size=16 \
     --warmup-steps=200 \
     --window-pattern=SSL \
-    --save-every=1000 \
+    --save-every=500 \
     --core-metric-every=5000 \
     --run=$WANDB_RUN
 ```
