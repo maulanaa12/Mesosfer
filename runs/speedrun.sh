@@ -23,7 +23,14 @@ command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 # create a .venv local virtual environment (if it doesn't exist)
 [ -d ".venv" ] || uv venv
 # install the repo dependencies
-uv sync --extra gpu
+# NOTE: if running on a ROCm 7.0 pre-built image (PyTorch 2.6.0 pre-installed),
+# use --no-build-isolation to reuse the existing torch instead of downloading from WHL index.
+if python -c "import torch; v=torch.version.hip; exit(0 if v and v.startswith('7') else 1)" 2>/dev/null; then
+    echo "Detected ROCm 7.x image — using --no-build-isolation"
+    uv sync --extra rocm --no-build-isolation
+else
+    uv sync --extra gpu
+fi
 # activate venv so that `python` uses the project's venv instead of system python
 source .venv/bin/activate
 
@@ -69,8 +76,11 @@ python -m scripts.tok_eval
 echo "Waiting for dataset download to complete..."
 wait $DATASET_DOWNLOAD_PID
 
-# d24 model (slightly undertrained to beat GPT-2 => decrease data:params ratio from compute optimal 10.5 (default) to 8)
-torchrun --standalone --nproc_per_node=8 -m scripts.base_train -- --depth=24 --target-param-data-ratio=8 --device-batch-size=16 --fp8 --run=$WANDB_RUN
+# d24 model with improved training config:
+#   --target-param-data-ratio=10  : compromise between speedrun (8, undertrained) and compute-optimal (12)
+#   --warmup-steps=200            : longer warmup needed for d24 (~500M params) to stabilize Muon momentum buffer
+#   --window-pattern=SSL          : 16 short + 8 long layers, balanced for cybersecurity long-context needs
+torchrun --standalone --nproc_per_node=8 -m scripts.base_train -- --depth=24 --target-param-data-ratio=10 --device-batch-size=16 --warmup-steps=200 --window-pattern=SSL --fp8 --run=$WANDB_RUN
 # evaluate the model: CORE metric, BPB on train/val, and draw samples
 torchrun --standalone --nproc_per_node=8 -m scripts.base_eval -- --device-batch-size=16
 

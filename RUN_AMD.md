@@ -80,12 +80,16 @@ source .venv/bin/activate
 ### 4. Install with ROCm Support
 
 ```bash
-uv sync --extra rocm
+# For ROCm 7.0 pre-built images (PyTorch 2.6.0 already installed in image):
+uv sync --extra rocm --no-build-isolation
+
+# For ROCm 6.4 (manual install from pytorch.org WHL):
+# uv sync --extra rocm
 ```
 
-This installs:
-- PyTorch with ROCm 6.4 support
-- `pytorch-triton-rocm==3.5.1` for Triton on AMD
+> **ROCm 7.0 image note:** The `PyTorch 2.6.0 - ROCm 7.0` image already has torch
+> pre-installed. Use `--no-build-isolation` so uv reuses the existing torch instead
+> of trying to download from the WHL index (which only has ROCm 6.4 builds).
 
 ### 5. Verify Installation
 
@@ -159,10 +163,15 @@ Latest AMD compute GPUs with highest performance:
 export mesosfer_TORCH_BACKEND=rocm
 export ROCM_BLIS_LC=1
 
-# 8-GPU configuration
+# 8-GPU configuration with depth 24 best-practice flags
 torchrun --standalone --nproc_per_node=8 -m scripts.base_train -- \
     --depth=24 \
+    --target-param-data-ratio=10 \
     --device-batch-size=16 \
+    --warmup-steps=200 \
+    --window-pattern=SSL \
+    --save-every=1000 \
+    --core-metric-every=5000 \
     --run=$WANDB_RUN
 ```
 
@@ -284,18 +293,25 @@ Common arguments for `scripts/base_train.py`:
 ### Batch Size Guidelines by GPU
 
 ```bash
-# MI355X/MI350X/MI325X (256GB memory)
+# MI355X/MI350X (256GB memory) — depth 24 can use --device-batch-size=32
+--device-batch-size=32
+
+# MI325X (256GB memory) — depth 24
+--device-batch-size=32
+
+# MI300X (192GB memory) — depth 24 can use 16, even 24 with FP8
 --device-batch-size=16
 
-# MI300X (192GB memory)
---device-batch-size=12
-
-# MI250X (128GB memory)
+# MI250X (128GB memory) — depth 24
 --device-batch-size=8
 
-# MI210 (64GB memory)
+# MI210 (64GB memory) — depth 16 max recommended
 --device-batch-size=4
 ```
+
+> **Note:** MI300X has 2.4× the VRAM of H100 (80GB). Don't be too conservative
+> — `--device-batch-size=16` is the sweet spot for d24 with 2048 seq_len, and
+> 24-32 is achievable when training without optimizer state replication.
 
 ---
 

@@ -26,6 +26,7 @@ from mesosfer.utils.common import compute_init, compute_cleanup, print0, get_bas
 from mesosfer.utils.checkpoint_manager import save_checkpoint, load_model
 from mesosfer.eval.engine import Engine
 from tasks.gsm8k import GSM8K
+from tasks.cybersec_rl import CyberDefensiveRL, MultiTurnSOCRL, MythosCombinedRL
 
 # -----------------------------------------------------------------------------
 # CLI arguments
@@ -37,8 +38,11 @@ parser.add_argument("--device-type", type=str, default="", help="cuda|cpu|mps (e
 # Model loading
 parser.add_argument("--model-tag", type=str, default=None, help="model tag to load from")
 parser.add_argument("--model-step", type=int, default=None, help="model step to load from")
+# Task selection
+parser.add_argument("--task", type=str, default="gsm8k", choices=["gsm8k", "cyber_defensive", "multi_turn_soc", "mythos"], help="RL task to train on")
+parser.add_argument("--task-language", type=str, default="id", choices=["id", "en"], help="language for bilingual cybersec tasks")
 # Training horizon
-parser.add_argument("--num-epochs", type=int, default=1, help="number of epochs over GSM8K")
+parser.add_argument("--num-epochs", type=int, default=1, help="number of epochs over the chosen task")
 # Batch sizes / sampling
 parser.add_argument("--device-batch-size", type=int, default=8, help="max batch size per forward pass")
 parser.add_argument("--examples-per-step", type=int, default=16, help="total examples per optimization step across all ranks")
@@ -77,8 +81,35 @@ engine = Engine(model, tokenizer) # for sampling rollouts
 # -----------------------------------------------------------------------------
 # Rollout / sampling generator loop that yields batches of examples for training
 
-train_task = GSM8K(subset="main", split="train")
-val_task = GSM8K(subset="main", split="test")
+# Task selection: GSM8K (math) or one of the cybersecurity tasks
+if args.task == "gsm8k":
+    train_task = GSM8K(subset="main", split="train")
+    val_task = GSM8K(subset="main", split="test")
+elif args.task == "cyber_defensive":
+    full = CyberDefensiveRL(language=args.task_language)
+    # Split 90/10 train/val deterministically
+    val_size = max(1, len(full) // 10)
+    train_size = len(full) - val_size
+    train_task = CyberDefensiveRL(language=args.task_language, start=0, stop=train_size)
+    val_task = CyberDefensiveRL(language=args.task_language, start=train_size, stop=len(full))
+elif args.task == "multi_turn_soc":
+    full = MultiTurnSOCRL()
+    val_size = max(1, len(full) // 4)  # tiny dataset, use 25% val
+    train_size = len(full) - val_size
+    train_task = MultiTurnSOCRL(start=0, stop=train_size)
+    val_task = MultiTurnSOCRL(start=train_size, stop=len(full))
+elif args.task == "mythos":
+    full = MythosCombinedRL(language=args.task_language)
+    val_size = max(1, len(full) // 10)
+    train_size = len(full) - val_size
+    train_task = MythosCombinedRL(language=args.task_language, start=0, stop=train_size)
+    val_task = MythosCombinedRL(language=args.task_language, start=train_size, stop=len(full))
+else:
+    raise ValueError(f"Unknown task: {args.task}")
+
+print0(f"RL task: {args.task} (language={args.task_language if args.task != 'gsm8k' else 'n/a'})")
+print0(f"Train rows: {len(train_task)}, Val rows: {len(val_task)}")
+
 num_steps = (len(train_task) // args.examples_per_step) * args.num_epochs
 print0(f"Calculated number of steps: {num_steps}")
 
@@ -146,7 +177,7 @@ def get_batch():
         yield generated_token_sequences, inputs, targets, rewards, advantages
 
 # -----------------------------------------------------------------------------
-# Simple evaluation loop for GSM8K pass@k
+# Simple evaluation loop for pass@k (works for any Task with .evaluate() method)
 def run_gsm8k_eval(task, tokenizer, engine,
     max_examples=None,
     num_samples=1,

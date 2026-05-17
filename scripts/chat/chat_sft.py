@@ -31,6 +31,7 @@ from tasks.mmlu import MMLU
 from tasks.smoltalk import SmolTalk
 from tasks.customjson import CustomJSON
 from tasks.spellingbee import SimpleSpelling, SpellingBee
+from tasks.cybersec_sft import build_cybersec_sft_tasks, total_cybersec_rows
 
 # -----------------------------------------------------------------------------
 # CLI arguments
@@ -66,6 +67,16 @@ parser.add_argument("--chatcore-max-sample", type=int, default=24, help="max pro
 # Data mixture
 parser.add_argument("--mmlu-epochs", type=int, default=3, help="number of epochs of MMLU in training mixture (teaches Multiple Choice)")
 parser.add_argument("--gsm8k-epochs", type=int, default=4, help="number of epochs of GSM8K in training mixture (teaches Math and Tool Use)")
+# Cybersecurity SFT data mixture
+parser.add_argument("--cyber-defensive-epochs", type=int, default=1, help="epochs of cyber_defensive_conversations (5K rows × language)")
+parser.add_argument("--cloud-security-epochs", type=int, default=20, help="epochs of cloud_security_sft (6 rows × language, oversampled)")
+parser.add_argument("--multi-turn-soc-epochs", type=int, default=30, help="epochs of multi_turn_soc_sft (4 rows, oversampled)")
+parser.add_argument("--tool-oriented-epochs", type=int, default=20, help="epochs of tool_oriented_cyber_sft (8 rows, oversampled)")
+parser.add_argument("--mythos-epochs", type=int, default=4, help="epochs of mythos_combined_sft (110 rows × language)")
+parser.add_argument("--atmosfer-validation-epochs", type=int, default=2, help="epochs of atmosfer_validation_conversations (300 rows × language)")
+parser.add_argument("--gemini-teacher-epochs", type=int, default=2, help="epochs of gemini_teacher_conversations (373 rows)")
+parser.add_argument("--include-english-sft", type=int, default=1, help="1 = include _en variants of bilingual cybersec datasets, 0 = ID only")
+parser.add_argument("--disable-cybersec-sft", action="store_true", help="disable all cybersecurity SFT datasets (for ablation)")
 args = parser.parse_args()
 user_config = vars(args).copy()
 # -----------------------------------------------------------------------------
@@ -184,6 +195,24 @@ train_tasks = [
     SimpleSpelling(size=200000, split="train"), # 200K rows of Simple Spelling (e.g. spell the word 'apple')
     SpellingBee(size=80000, split="train"), # 80K rows of Spelling Bee (e.g. how many 'r' are in 'strawberry'?)
 ]
+
+# Add cybersecurity SFT mixture (preserves cybersec capability from pretraining)
+if not args.disable_cybersec_sft:
+    cybersec_tasks = build_cybersec_sft_tasks(
+        cyber_defensive_epochs=args.cyber_defensive_epochs,
+        cloud_security_epochs=args.cloud_security_epochs,
+        multi_turn_soc_epochs=args.multi_turn_soc_epochs,
+        tool_oriented_epochs=args.tool_oriented_epochs,
+        mythos_epochs=args.mythos_epochs,
+        atmosfer_validation_epochs=args.atmosfer_validation_epochs,
+        gemini_teacher_epochs=args.gemini_teacher_epochs,
+        include_english=bool(args.include_english_sft),
+    )
+    train_tasks.extend(cybersec_tasks)
+    print0(f"Added cybersec SFT: {len(cybersec_tasks)} task instances, {total_cybersec_rows(cybersec_tasks):,} total rows")
+else:
+    print0("Cybersec SFT disabled via --disable-cybersec-sft")
+
 train_dataset = TaskMixture(train_tasks)
 print0(f"Training mixture: {len(train_dataset):,} rows (MMLU x{args.mmlu_epochs}, GSM8K x{args.gsm8k_epochs})")
 val_dataset = TaskMixture([
