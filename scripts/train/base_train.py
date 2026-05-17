@@ -33,7 +33,7 @@ from mesosfer.utils.checkpoint_manager import save_checkpoint, load_checkpoint
 from mesosfer.eval.loss_eval import evaluate_bpb
 from mesosfer.eval.engine import Engine
 from mesosfer.model.flash_attention import ATTENTION_BACKEND, HAS_FA2, HAS_FA3, _is_rocm
-from scripts.base_eval import evaluate_core
+from scripts.eval.base_eval import evaluate_core
 print_banner()
 
 # -----------------------------------------------------------------------------

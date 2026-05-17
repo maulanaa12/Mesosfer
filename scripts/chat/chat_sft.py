@@ -23,7 +23,7 @@ from mesosfer.eval.loss_eval import evaluate_bpb
 import torch.distributed as dist
 from mesosfer.model.flash_attention import ATTENTION_BACKEND, HAS_FA2, HAS_FA3, _is_rocm
 from mesosfer.eval.engine import Engine
-from scripts.chat_eval import run_chat_eval
+from scripts.chat.chat_eval import run_chat_eval
 
 from tasks.common import TaskMixture
 from tasks.gsm8k import GSM8K
