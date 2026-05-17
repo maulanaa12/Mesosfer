@@ -232,6 +232,54 @@ python -m scripts.base_train -- \
 
 ## Training Scripts
 
+### Data Pipeline Overview
+
+mesosfer auto-merges parquet shards from two sources for pretraining:
+
+```
+~/.cache/mesosfer/
+├── base_data_climbmix/           ← downloaded by `mesosfer.data.dataset -n 170`
+│   ├── shard_00000.parquet
+│   ├── ...
+│   └── shard_06542.parquet       ← always used as validation shard
+└── base_data_cybersecurity/      ← created by `scripts.data.prepare_data` (auto-merged)
+    ├── shard_00000.parquet
+    └── ...
+```
+
+The dataloader (`mesosfer/data/dataloader.py`) reads from both directories. Auxiliary
+shards from `base_data_cybersecurity/` are placed BEFORE primary ClimbMix shards in
+the iteration order, so the validation shard always comes from ClimbMix.
+
+**Recommended pipeline order:**
+
+```bash
+# 1. Download ClimbMix general pretraining data (~17GB)
+python -m mesosfer.data.dataset -n 170
+
+# 2. Convert raw security logs to natural language (already done in repo)
+python -m scripts.data.convert_logs_to_nl
+
+# 3. Prepare cybersecurity dataset (downloads + interleaves cybersec sources)
+python -m scripts.data.prepare_data
+# Output: ~/.cache/mesosfer/base_data_cybersecurity/shard_*.parquet
+
+# 4. Train tokenizer (uses ClimbMix only — fast, ~10 min)
+python -m scripts.train.tok_train
+
+# 5. Pretrain depth 24 (auto-merges both directories at training time)
+torchrun --standalone --nproc_per_node=1 -m scripts.train.base_train -- \
+    --depth=24 --target-param-data-ratio=10 --device-batch-size=16 \
+    --warmup-steps=200 --window-pattern=SSL --run=$WANDB_RUN
+
+# 6. SFT (cybersec mixture auto-included via tasks/cybersec_sft.py)
+torchrun --standalone --nproc_per_node=1 -m scripts.chat.chat_sft -- \
+    --device-batch-size=16 --run=$WANDB_RUN
+```
+
+> **Steps 1, 2, and 3 can run in parallel.** Tokenizer training (step 4) only
+> needs step 1 to be complete. Pretraining (step 5) needs steps 1, 3, and 4.
+
 ### Quick Start: GPT-2 Class Training
 
 **Note:** Training times on AMD GPUs vary by GPU model. MI300X 8x similar to H100.
