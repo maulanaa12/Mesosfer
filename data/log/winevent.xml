@@ -1,0 +1,84 @@
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Security-Auditing"/>
+    <EventID>4624</EventID>
+    <Level>0</Level>
+    <TimeCreated SystemTime="2026-05-16T14:33:11.102Z"/>
+    <Computer>FS01.corp.local</Computer>
+  </System>
+  <EventData>
+    <Data Name="TargetUserName">svc_backup</Data>
+    <Data Name="TargetDomainName">CORP</Data>
+    <Data Name="LogonType">3</Data>
+    <Data Name="AuthenticationPackageName">NTLM</Data>
+    <Data Name="WorkstationName">WS-224</Data>
+    <Data Name="IpAddress">10.20.14.55</Data>
+    <Data Name="ProcessName">C:\Windows\System32\svchost.exe</Data>
+  </EventData>
+</Event>
+
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Security-Auditing"/>
+    <EventID>4672</EventID>
+    <Level>0</Level>
+    <TimeCreated SystemTime="2026-05-16T14:33:11.448Z"/>
+    <Computer>FS01.corp.local</Computer>
+  </System>
+  <EventData>
+    <Data Name="SubjectUserName">svc_backup</Data>
+    <Data Name="SubjectDomainName">CORP</Data>
+    <Data Name="PrivilegeList">SeDebugPrivilege SeImpersonatePrivilege SeTcbPrivilege</Data>
+  </EventData>
+</Event>
+
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Service Control Manager"/>
+    <EventID>7045</EventID>
+    <Level>4</Level>
+    <TimeCreated SystemTime="2026-05-16T14:33:14.992Z"/>
+    <Computer>FS01.corp.local</Computer>
+  </System>
+  <EventData>
+    <Data Name="ServiceName">winupdate_sync</Data>
+    <Data Name="ImagePath">cmd.exe /c powershell -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkA</Data>
+    <Data Name="ServiceType">user mode service</Data>
+    <Data Name="StartType">demand start</Data>
+    <Data Name="AccountName">LocalSystem</Data>
+  </EventData>
+</Event>
+
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Security-Auditing"/>
+    <EventID>5140</EventID>
+    <Level>0</Level>
+    <TimeCreated SystemTime="2026-05-16T14:33:15.313Z"/>
+    <Computer>FS01.corp.local</Computer>
+  </System>
+  <EventData>
+    <Data Name="ShareName">\\*\ADMIN$</Data>
+    <Data Name="SubjectUserName">svc_backup</Data>
+    <Data Name="IpAddress">10.20.14.55</Data>
+    <Data Name="AccessMask">0x1f01ff</Data>
+  </EventData>
+</Event>
+
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Security-Auditing"/>
+    <EventID>4625</EventID>
+    <Level>0</Level>
+    <TimeCreated SystemTime="2026-05-16T14:35:02.721Z"/>
+    <Computer>DC01.corp.local</Computer>
+  </System>
+  <EventData>
+    <Data Name="TargetUserName">administrator</Data>
+    <Data Name="LogonType">3</Data>
+    <Data Name="AuthenticationPackageName">NTLM</Data>
+    <Data Name="IpAddress">10.20.14.55</Data>
+    <Data Name="Status">0xC000006D</Data>
+    <Data Name="SubStatus">0xC000006A</Data>
+  </EventData>
+</Event>

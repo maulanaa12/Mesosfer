@@ -1,0 +1,147 @@
+[
+  {
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "status": {},
+      "authenticationInfo": {
+        "principalEmail": "ci-cd-runner@acme-prod-318919.iam.gserviceaccount.com",
+        "serviceAccountDelegationInfo": []
+      },
+      "requestMetadata": {
+        "callerIp": "45.83.64.112",
+        "callerSuppliedUserAgent": "google-api-python-client/2.126.0 Python/3.11.8 (gzip)",
+        "requestAttributes": {
+          "time": "2026-05-16T02:41:13.827Z",
+          "auth": {}
+        },
+        "destinationAttributes": {}
+      },
+      "serviceName": "cloudresourcemanager.googleapis.com",
+      "methodName": "SetIamPolicy",
+      "authorizationInfo": [
+        {
+          "resource": "projects/acme-prod-318919",
+          "permission": "resourcemanager.projects.setIamPolicy",
+          "granted": true
+        }
+      ],
+      "resourceName": "projects/acme-prod-318919",
+      "request": {
+        "@type": "type.googleapis.com/google.iam.v1.SetIamPolicyRequest",
+        "resource": "projects/acme-prod-318919",
+        "policy": {
+          "bindings": [
+            {
+              "role": "roles/owner",
+              "members": [
+                "serviceAccount:ci-cd-runner@acme-prod-318919.iam.gserviceaccount.com"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "insertId": "8r7n2wd9f0",
+    "resource": {
+      "type": "project",
+      "labels": {
+        "project_id": "acme-prod-318919"
+      }
+    },
+    "timestamp": "2026-05-16T02:41:14.103Z",
+    "severity": "NOTICE",
+    "logName": "projects/acme-prod-318919/logs/cloudaudit.googleapis.com%2Factivity",
+    "receiveTimestamp": "2026-05-16T02:41:14.782Z"
+  },
+  {
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "status": {},
+      "authenticationInfo": {
+        "principalEmail": "ci-cd-runner@acme-prod-318919.iam.gserviceaccount.com"
+      },
+      "requestMetadata": {
+        "callerIp": "45.83.64.112",
+        "callerSuppliedUserAgent": "Terraform/1.8.4 terraform-provider-google/5.31.0",
+        "requestAttributes": {
+          "time": "2026-05-16T02:43:51.491Z",
+          "auth": {}
+        }
+      },
+      "serviceName": "securitycenter.googleapis.com",
+      "methodName": "google.cloud.securitycenter.v2.SecurityCenter.UpdateNotificationConfig",
+      "authorizationInfo": [
+        {
+          "resource": "projects/982144771902",
+          "permission": "securitycenter.notificationconfig.update",
+          "granted": true
+        }
+      ],
+      "resourceName": "projects/982144771902/notificationConfigs/high-severity-findings",
+      "request": {
+        "notificationConfig": {
+          "name": "projects/982144771902/notificationConfigs/high-severity-findings",
+          "description": "Disabled by automation pipeline",
+          "pubsubTopic": "",
+          "streamingConfig": {
+            "filter": "severity=\"HIGH\""
+          }
+        },
+        "updateMask": "pubsub_topic"
+      }
+    },
+    "insertId": "4pkd9x71ab",
+    "resource": {
+      "type": "audited_resource",
+      "labels": {
+        "project_id": "acme-prod-318919",
+        "service": "securitycenter.googleapis.com",
+        "method": "google.cloud.securitycenter.v2.SecurityCenter.UpdateNotificationConfig"
+      }
+    },
+    "timestamp": "2026-05-16T02:43:51.887Z",
+    "severity": "WARNING",
+    "logName": "projects/acme-prod-318919/logs/cloudaudit.googleapis.com%2Factivity",
+    "receiveTimestamp": "2026-05-16T02:43:52.339Z"
+  },
+  {
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "authenticationInfo": {
+        "principalEmail": "ci-cd-runner@acme-prod-318919.iam.gserviceaccount.com"
+      },
+      "requestMetadata": {
+        "callerIp": "45.83.64.112",
+        "callerSuppliedUserAgent": "curl/8.7.1",
+        "requestAttributes": {
+          "time": "2026-05-16T02:46:07.119Z"
+        }
+      },
+      "serviceName": "iam.googleapis.com",
+      "methodName": "google.iam.admin.v1.CreateServiceAccountKey",
+      "authorizationInfo": [
+        {
+          "resource": "projects/acme-prod-318919/serviceAccounts/backup-admin@acme-prod-318919.iam.gserviceaccount.com",
+          "permission": "iam.serviceAccountKeys.create",
+          "granted": true
+        }
+      ],
+      "resourceName": "projects/acme-prod-318919/serviceAccounts/backup-admin@acme-prod-318919.iam.gserviceaccount.com",
+      "response": {
+        "@type": "type.googleapis.com/google.iam.admin.v1.ServiceAccountKey"
+      }
+    },
+    "insertId": "b2ff1f3c6e",
+    "resource": {
+      "type": "service_account",
+      "labels": {
+        "project_id": "acme-prod-318919",
+        "email_id": "backup-admin@acme-prod-318919.iam.gserviceaccount.com"
+      }
+    },
+    "timestamp": "2026-05-16T02:46:07.431Z",
+    "severity": "ERROR",
+    "logName": "projects/acme-prod-318919/logs/cloudaudit.googleapis.com%2Factivity",
+    "receiveTimestamp": "2026-05-16T02:46:07.902Z"
+  }
+]

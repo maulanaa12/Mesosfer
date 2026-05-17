@@ -1,0 +1,134 @@
+[
+  {
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "authenticationInfo": {
+        "principalEmail": "backup-sync@delta-finance-prod.iam.gserviceaccount.com",
+        "serviceAccountKeyName": "//iam.googleapis.com/projects/482991731109/serviceAccounts/backup-sync@delta-finance-prod.iam.gserviceaccount.com/keys/c91dbaf72f0e14ab2fd58a0f21d18f8c6c3e7f9d"
+      },
+      "requestMetadata": {
+        "callerIp": "185.193.88.27",
+        "callerSuppliedUserAgent": "gsutil/5.29 Python/3.11.7 (linux) boto/2.49.0",
+        "requestAttributes": {
+          "time": "2026-05-16T05:08:42.119Z",
+          "auth": {}
+        },
+        "destinationAttributes": {}
+      },
+      "serviceName": "storage.googleapis.com",
+      "methodName": "storage.objects.list",
+      "authorizationInfo": [
+        {
+          "resource": "projects/_/buckets/delta-finance-exports",
+          "permission": "storage.objects.list",
+          "granted": true
+        }
+      ],
+      "resourceName": "projects/_/buckets/delta-finance-exports",
+      "resourceLocation": {
+        "currentLocations": [
+          "us-central1"
+        ]
+      }
+    },
+    "insertId": "1kwj7u2d6m",
+    "resource": {
+      "type": "gcs_bucket",
+      "labels": {
+        "bucket_name": "delta-finance-exports",
+        "project_id": "delta-finance-prod",
+        "location": "us-central1"
+      }
+    },
+    "timestamp": "2026-05-16T05:08:42.438Z",
+    "severity": "NOTICE",
+    "logName": "projects/delta-finance-prod/logs/cloudaudit.googleapis.com%2Fdata_access",
+    "receiveTimestamp": "2026-05-16T05:08:43.002Z"
+  },
+  {
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "authenticationInfo": {
+        "principalEmail": "backup-sync@delta-finance-prod.iam.gserviceaccount.com",
+        "serviceAccountKeyName": "//iam.googleapis.com/projects/482991731109/serviceAccounts/backup-sync@delta-finance-prod.iam.gserviceaccount.com/keys/c91dbaf72f0e14ab2fd58a0f21d18f8c6c3e7f9d"
+      },
+      "requestMetadata": {
+        "callerIp": "185.193.88.27",
+        "callerSuppliedUserAgent": "google-cloud-sdk gcloud/475.0.0 command/gcloud.storage.cp",
+        "requestAttributes": {
+          "time": "2026-05-16T05:10:11.847Z",
+          "auth": {}
+        }
+      },
+      "serviceName": "storage.googleapis.com",
+      "methodName": "storage.objects.get",
+      "authorizationInfo": [
+        {
+          "resource": "projects/_/buckets/delta-finance-exports/objects/customer_exports_2026-05.csv.gz",
+          "permission": "storage.objects.get",
+          "granted": true
+        }
+      ],
+      "resourceName": "projects/_/buckets/delta-finance-exports/objects/customer_exports_2026-05.csv.gz",
+      "resourceLocation": {
+        "currentLocations": [
+          "us-central1"
+        ]
+      },
+      "metadata": {
+        "object_id": "customer_exports_2026-05.csv.gz",
+        "object_size": "842193221"
+      }
+    },
+    "insertId": "f92ax2m6tr",
+    "resource": {
+      "type": "gcs_bucket",
+      "labels": {
+        "bucket_name": "delta-finance-exports",
+        "project_id": "delta-finance-prod",
+        "location": "us-central1"
+      }
+    },
+    "timestamp": "2026-05-16T05:10:12.113Z",
+    "severity": "WARNING",
+    "logName": "projects/delta-finance-prod/logs/cloudaudit.googleapis.com%2Fdata_access",
+    "receiveTimestamp": "2026-05-16T05:10:12.744Z"
+  },
+  {
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "authenticationInfo": {
+        "principalEmail": "backup-sync@delta-finance-prod.iam.gserviceaccount.com"
+      },
+      "requestMetadata": {
+        "callerIp": "185.193.88.27",
+        "callerSuppliedUserAgent": "curl/8.6.0",
+        "requestAttributes": {
+          "time": "2026-05-16T05:12:27.590Z"
+        }
+      },
+      "serviceName": "iam.googleapis.com",
+      "methodName": "google.iam.admin.v1.ListServiceAccountKeys",
+      "authorizationInfo": [
+        {
+          "resource": "projects/delta-finance-prod/serviceAccounts/backup-sync@delta-finance-prod.iam.gserviceaccount.com",
+          "permission": "iam.serviceAccountKeys.list",
+          "granted": true
+        }
+      ],
+      "resourceName": "projects/delta-finance-prod/serviceAccounts/backup-sync@delta-finance-prod.iam.gserviceaccount.com"
+    },
+    "insertId": "q7tb3a0d91",
+    "resource": {
+      "type": "service_account",
+      "labels": {
+        "project_id": "delta-finance-prod",
+        "email_id": "backup-sync@delta-finance-prod.iam.gserviceaccount.com"
+      }
+    },
+    "timestamp": "2026-05-16T05:12:27.901Z",
+    "severity": "ERROR",
+    "logName": "projects/delta-finance-prod/logs/cloudaudit.googleapis.com%2Factivity",
+    "receiveTimestamp": "2026-05-16T05:12:28.481Z"
+  }
+]

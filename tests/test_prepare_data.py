@@ -1,0 +1,190 @@
+import sys
+from dataclasses import FrozenInstanceError
+
+from scripts.data import prepare_data
+
+
+def test_stream_local_jsonl_text_rows(tmp_path):
+    local_file = tmp_path / "ir.jsonl"
+    local_file.write_text(
+        '{"text":"Incident response report with ransomware triage, containment, and recovery details."}\n'
+        '{"text":"short"}\n',
+        encoding="utf-8",
+    )
+
+    source_config = {
+        "source_type": "local_files",
+        "local_paths": [str(local_file)],
+        "category": "cybersecurity",
+    }
+
+    docs = list(prepare_data.stream_local_file_texts("local_incident_response", source_config, float("inf")))
+
+    assert docs == [
+        "Source: local_incident_response\n"
+        f"File: {local_file.name}\n\n"
+        "Incident response report with ransomware triage, containment, and recovery details."
+    ]
+
+
+def test_stream_local_jsonl_conversation_list(tmp_path):
+    local_file = tmp_path / "soc.jsonl"
+    local_file.write_text(
+        '[{"role":"user","content":"How do I triage suspicious Windows login failures?"},'
+        '{"role":"assistant","content":"Review Event ID 4625, source IPs, successful follow-up logins, and preserve evidence."}]\n',
+        encoding="utf-8",
+    )
+
+    source_config = {
+        "source_type": "local_files",
+        "local_paths": [str(local_file)],
+        "category": "cybersecurity",
+    }
+
+    docs = list(prepare_data.stream_local_file_texts("local_soc_synthetic", source_config, float("inf")))
+
+    assert len(docs) == 1
+    assert "user: How do I triage suspicious Windows login failures?" in docs[0]
+    assert "assistant: Review Event ID 4625" in docs[0]
+
+
+def test_stream_local_raw_files_include_file_label(tmp_path):
+    local_file = tmp_path / "apache.log"
+    local_file.write_text(
+        "203.0.113.77 - - [16/May/2026:08:00:00] "
+        '"GET /login.php?id=1%27%20UNION%20SELECT HTTP/1.1" 403 421\n',
+        encoding="utf-8",
+    )
+
+    source_config = {
+        "source_type": "local_files",
+        "local_paths": [str(local_file)],
+        "category": "cybersecurity",
+    }
+
+    docs = list(prepare_data.stream_local_file_texts("local_security_logs", source_config, float("inf")))
+
+    assert docs == [
+        "Source: local_security_logs\n"
+        f"File: {local_file.name}\n\n"
+        "203.0.113.77 - - [16/May/2026:08:00:00] "
+        '"GET /login.php?id=1%27%20UNION%20SELECT HTTP/1.1" 403 421'
+    ]
+
+
+def test_default_sources_include_local_but_exclude_sft():
+    local_sources = [
+        name
+        for name, config in prepare_data.DATASET_SOURCES.items()
+        if config.get("source_type") == "local_files"
+    ]
+
+    assert {
+        "local_incident_response",
+        "local_soc_synthetic",
+        "local_reverse_engineering",
+        "local_cloud_security",
+        "local_security_logs",
+    }.issubset(local_sources)
+    assert all("data/sft" not in path for name in local_sources for path in prepare_data.DATASET_SOURCES[name]["local_paths"])
+
+
+def test_climbmix_keeps_general_text_without_security_keywords():
+    text = "This is a high quality general explanation about literature, history, and scientific reasoning."
+
+    assert prepare_data.is_high_quality_security_text(text, "climbmix") is True
+
+
+def test_sampling_probabilities_prefer_cyber_and_local_over_general():
+    source_names = ["local_incident_response", "circl_vuln_patch", "climbmix", "wikipedia"]
+    probs = dict(zip(source_names, prepare_data._build_sampling_probs(source_names)))
+
+    assert probs["local_incident_response"] > probs["climbmix"]
+    assert probs["circl_vuln_patch"] > probs["wikipedia"]
+
+
+def test_dry_run_exits_before_interleaved_streaming(monkeypatch, tmp_path, capsys):
+    called = False
+
+    def fail_if_called(*args, **kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("dry-run should not enter interleaved streaming")
+
+    monkeypatch.setattr(prepare_data, "get_base_dir", lambda: str(tmp_path))
+    monkeypatch.setattr(prepare_data, "interleaved_shuffle_main", fail_if_called)
+    monkeypatch.setattr(sys, "argv", ["prepare_data.py", "--dry-run", "--max-tokens", "1000000"])
+
+    prepare_data.main()
+
+    output = capsys.readouterr().out
+    assert called is False
+    assert "[DRY RUN]" in output
+    assert "Approx target by category" in output
+    assert "local files" in output
+
+
+def test_dataset2_adds_advanced_security_vocabulary():
+    assert "allows attacker to" in prepare_data.CAUSAL_MARKERS
+    assert "use-after-free" in prepare_data.MECHANISM_TERMS
+    assert "book a demo" in prepare_data.MARKETING_TERMS
+    assert "shellcode" in prepare_data.SECURITY_CODE_TERMS
+
+
+def test_source_schema_is_frozen_and_scales_token_caps():
+    source = prepare_data.Source(
+        name="example",
+        source_type="rss",
+        domain="Cyber",
+        primary_subdomain="Threat Intel",
+        expected_tier=prepare_data.TIER_GOLD,
+        estimated_tokens=10,
+        max_tokens=20,
+        description="Example source",
+        config={"url": "https://example.com/feed.xml"},
+    )
+
+    try:
+        source.name = "changed"
+    except FrozenInstanceError:
+        pass
+    else:
+        raise AssertionError("Source should be frozen")
+
+    definitions = {src.name: src for src in prepare_data._source_definitions(target_tokens=1_000_000_000)}
+    assert definitions["project_zero"].max_tokens == 80_000_000
+    assert definitions["project_zero"].expected_tier == prepare_data.TIER_GOLD
+
+
+def test_dataset2_sources_are_available_without_breaking_dry_run():
+    assert "project_zero" in prepare_data.DATASET_SOURCES
+    assert prepare_data.DATASET_SOURCES["project_zero"]["source_type"] == "rss"
+    assert prepare_data.DOMAIN_SAMPLING_WEIGHTS["project_zero"] > prepare_data.DOMAIN_SAMPLING_WEIGHTS["wikipedia"]
+
+
+def test_dataset2_vocabulary_only_applies_to_dataset2_sources():
+    dataset2_marker_only = (
+        "The advisory explains that this condition allows attacker to alter the control flow "
+        "after malformed input reaches a parser boundary."
+    )
+    old_source_marker_only = (
+        "The repository note says this condition allows attacker to alter application behavior "
+        "after malformed input reaches a parser boundary."
+    )
+
+    assert prepare_data.is_high_quality_security_text(dataset2_marker_only, "project_zero") is True
+    assert prepare_data.is_high_quality_security_text(old_source_marker_only, "secure_code_python") is False
+
+
+def test_dataset2_marketing_filter_only_applies_to_dataset2_sources():
+    dataset2_marketing = (
+        "CVE-2026-0001 overview with vendor pricing language. Book a demo to learn more "
+        "about the platform and customer story."
+    )
+    old_source_marketing = (
+        "CVE-2026-0001 proof of concept notes include a book a demo string copied from "
+        "a README banner in the repository."
+    )
+
+    assert prepare_data.is_high_quality_security_text(dataset2_marketing, "project_zero") is False
+    assert prepare_data.is_high_quality_security_text(old_source_marketing, "secure_code_python") is True

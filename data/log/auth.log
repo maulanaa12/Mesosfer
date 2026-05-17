@@ -1,0 +1,15 @@
+May 16 10:41:02 web01 sshd[21455]: Failed password for invalid user admin from 203.0.113.77 port 49822 ssh2
+May 16 10:41:04 web01 sshd[21457]: Failed password for invalid user test from 203.0.113.77 port 49836 ssh2
+May 16 10:41:07 web01 sshd[21461]: Failed password for root from 203.0.113.77 port 49844 ssh2
+May 16 10:41:09 web01 sshd[21463]: Failed password for ubuntu from 203.0.113.77 port 49858 ssh2
+May 16 10:41:12 web01 sshd[21466]: Failed password for invalid user oracle from 203.0.113.77 port 49864 ssh2
+May 16 10:41:15 web01 sshd[21469]: Failed password for devops from 203.0.113.77 port 49872 ssh2
+May 16 10:41:19 web01 sshd[21473]: Failed password for root from 203.0.113.77 port 49888 ssh2
+May 16 10:41:24 web01 sshd[21478]: Failed password for admin from 203.0.113.77 port 49904 ssh2
+May 16 10:41:28 web01 sshd[21481]: Received disconnect from 203.0.113.77 port 49904:11: Bye Bye [preauth]
+May 16 10:42:02 web01 sshd[21511]: Accepted password for devops from 203.0.113.77 port 50012 ssh2
+May 16 10:42:02 web01 sshd[21511]: pam_unix(sshd:session): session opened for user devops(uid=1002) by (uid=0)
+May 16 10:42:05 web01 sudo:   devops : TTY=pts/1 ; PWD=/home/devops ; USER=root ; COMMAND=/usr/bin/cat /etc/shadow
+May 16 10:42:05 web01 sudo: pam_unix(sudo:session): session opened for user root(uid=0) by devops(uid=1002)
+May 16 10:42:06 web01 sudo: pam_unix(sudo:session): session closed for user root
+May 16 10:42:12 web01 sshd[21511]: pam_unix(sshd:session): session closed for user devops

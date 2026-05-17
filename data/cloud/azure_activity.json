@@ -1,0 +1,167 @@
+[
+  {
+    "authorization": {
+      "action": "Microsoft.Authorization/roleAssignments/write",
+      "scope": "/subscriptions/3f9d2a1e-7b4f-41d9-b2ea-9f51d67c1c83"
+    },
+    "caller": "admin@northwindsec.onmicrosoft.com",
+    "channels": "Operation",
+    "claims": {
+      "aud": "https://management.azure.com/",
+      "iss": "https://sts.windows.net/9188040d-6c67-4c5b-b112-36a304b66dad/",
+      "http://schemas.microsoft.com/identity/claims/objectidentifier": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn": "admin@northwindsec.onmicrosoft.com",
+      "ipaddr": "91.240.118.73",
+      "name": "Alex Mercer",
+      "puid": "10032001A84F1E22"
+    },
+    "correlationId": "cc7f48c4-bd9e-4977-9f0e-9db8b4e82b6d",
+    "description": "",
+    "eventDataId": "7ef19351-7651-4cf0-bb2d-fd02a9156cb8",
+    "eventName": {
+      "value": "EndRequest",
+      "localizedValue": "End request"
+    },
+    "category": {
+      "value": "Administrative",
+      "localizedValue": "Administrative"
+    },
+    "eventTimestamp": "2026-05-16T03:12:44.9812317Z",
+    "id": "/subscriptions/3f9d2a1e-7b4f-41d9-b2ea-9f51d67c1c83/events/7ef19351-7651-4cf0-bb2d-fd02a9156cb8/ticks/638829043649812317",
+    "level": "Informational",
+    "operationId": "b1adce0d-61ab-48d9-a9d8-5d6d1d27dc7b",
+    "operationName": {
+      "value": "Microsoft.Authorization/roleAssignments/write",
+      "localizedValue": "Create role assignment"
+    },
+    "resourceGroupName": "",
+    "resourceProviderName": {
+      "value": "Microsoft.Authorization",
+      "localizedValue": "Microsoft Authorization"
+    },
+    "resourceType": {
+      "value": "Microsoft.Authorization/roleAssignments",
+      "localizedValue": "Microsoft.Authorization/roleAssignments"
+    },
+    "resourceId": "/subscriptions/3f9d2a1e-7b4f-41d9-b2ea-9f51d67c1c83/providers/Microsoft.Authorization/roleAssignments/5eec4db3-b4f9-4f97-a1c1-53d0a8d2efc5",
+    "status": {
+      "value": "Succeeded",
+      "localizedValue": "Succeeded"
+    },
+    "subStatus": {
+      "value": "",
+      "localizedValue": ""
+    },
+    "submissionTimestamp": "2026-05-16T03:13:01.1078821Z",
+    "subscriptionId": "3f9d2a1e-7b4f-41d9-b2ea-9f51d67c1c83",
+    "tenantId": "9188040d-6c67-4c5b-b112-36a304b66dad",
+    "properties": {
+      "roleDefinitionId": "/subscriptions/3f9d2a1e-7b4f-41d9-b2ea-9f51d67c1c83/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c",
+      "principalId": "6c9d7f72-8b17-4b89-b9f8-9f8d1f97b55a",
+      "principalType": "ServicePrincipal",
+      "scope": "/subscriptions/3f9d2a1e-7b4f-41d9-b2ea-9f51d67c1c83"
+    }
+  },
+  {
+    "authorization": {
+      "action": "Microsoft.Graph/applications/create",
+      "scope": "/tenants/9188040d-6c67-4c5b-b112-36a304b66dad"
+    },
+    "caller": "admin@northwindsec.onmicrosoft.com",
+    "channels": "Operation",
+    "claims": {
+      "aud": "https://graph.microsoft.com/",
+      "iss": "https://sts.windows.net/9188040d-6c67-4c5b-b112-36a304b66dad/",
+      "http://schemas.microsoft.com/identity/claims/objectidentifier": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn": "admin@northwindsec.onmicrosoft.com",
+      "ipaddr": "91.240.118.73"
+    },
+    "correlationId": "93e5c6da-6b18-45ec-b6ef-9b5e6491cf8d",
+    "eventDataId": "ef0cb88d-c681-4dc7-9cf5-53f4a6db64b4",
+    "eventName": {
+      "value": "EndRequest",
+      "localizedValue": "End request"
+    },
+    "category": {
+      "value": "Administrative",
+      "localizedValue": "Administrative"
+    },
+    "eventTimestamp": "2026-05-16T03:10:29.1175128Z",
+    "id": "/tenants/9188040d-6c67-4c5b-b112-36a304b66dad/events/ef0cb88d-c681-4dc7-9cf5-53f4a6db64b4/ticks/638829042291175128",
+    "level": "Warning",
+    "operationId": "84e0b7b4-efb5-40fd-8d75-df24f59e4b7c",
+    "operationName": {
+      "value": "Microsoft.Graph/applications/create",
+      "localizedValue": "Create application"
+    },
+    "resourceProviderName": {
+      "value": "Microsoft.Graph",
+      "localizedValue": "Microsoft Graph"
+    },
+    "resourceType": {
+      "value": "Applications",
+      "localizedValue": "Applications"
+    },
+    "resourceId": "/applications/1b55cb47-7f4d-4f55-9de1-8d62e26ef914",
+    "status": {
+      "value": "Succeeded",
+      "localizedValue": "Succeeded"
+    },
+    "submissionTimestamp": "2026-05-16T03:10:41.0091924Z",
+    "tenantId": "9188040d-6c67-4c5b-b112-36a304b66dad",
+    "properties": {
+      "appId": "9f3e91d3-f17a-4f0f-b4d0-8498fc5f89b1",
+      "displayName": "AzureOpsAutomation",
+      "servicePrincipalType": "Application",
+      "createdBy": "admin@northwindsec.onmicrosoft.com"
+    }
+  },
+  {
+    "authorization": {
+      "action": "Microsoft.KeyVault/vaults/secrets/list/action",
+      "scope": "/subscriptions/3f9d2a1e-7b4f-41d9-b2ea-9f51d67c1c83/resourceGroups/prod-sec-rg/providers/Microsoft.KeyVault/vaults/prod-keyvault-01"
+    },
+    "caller": "admin@northwindsec.onmicrosoft.com",
+    "channels": "Operation",
+    "claims": {
+      "aud": "https://vault.azure.net",
+      "ipaddr": "91.240.118.73",
+      "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn": "admin@northwindsec.onmicrosoft.com"
+    },
+    "correlationId": "bca9f931-ef84-4630-934f-cd98b0630a94",
+    "eventDataId": "d2d8c744-cc6e-4632-b7b3-8f8c7b0e7db0",
+    "eventName": {
+      "value": "EndRequest",
+      "localizedValue": "End request"
+    },
+    "category": {
+      "value": "Administrative",
+      "localizedValue": "Administrative"
+    },
+    "eventTimestamp": "2026-05-16T03:15:53.4491174Z",
+    "id": "/subscriptions/3f9d2a1e-7b4f-41d9-b2ea-9f51d67c1c83/events/d2d8c744-cc6e-4632-b7b3-8f8c7b0e7db0/ticks/638829045534491174",
+    "level": "Error",
+    "operationId": "fe9dcbb4-bccf-4ef4-b2aa-3db8d6a9ef13",
+    "operationName": {
+      "value": "Microsoft.KeyVault/vaults/secrets/list/action",
+      "localizedValue": "List Key Vault secrets"
+    },
+    "resourceGroupName": "prod-sec-rg",
+    "resourceProviderName": {
+      "value": "Microsoft.KeyVault",
+      "localizedValue": "Microsoft Key Vault"
+    },
+    "resourceType": {
+      "value": "Microsoft.KeyVault/vaults",
+      "localizedValue": "Microsoft.KeyVault/vaults"
+    },
+    "resourceId": "/subscriptions/3f9d2a1e-7b4f-41d9-b2ea-9f51d67c1c83/resourceGroups/prod-sec-rg/providers/Microsoft.KeyVault/vaults/prod-keyvault-01",
+    "status": {
+      "value": "Succeeded",
+      "localizedValue": "Succeeded"
+    },
+    "submissionTimestamp": "2026-05-16T03:16:02.7765113Z",
+    "subscriptionId": "3f9d2a1e-7b4f-41d9-b2ea-9f51d67c1c83",
+    "tenantId": "9188040d-6c67-4c5b-b112-36a304b66dad"
+  }
+]

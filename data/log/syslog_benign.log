@@ -1,0 +1,6 @@
+May 16 01:00:01 db-backup01 CRON[1822]: (root) CMD (/usr/local/bin/backup.sh)
+May 16 01:00:04 db-backup01 backup.sh[1831]: Starting incremental backup for /var/lib/mysql
+May 16 01:03:42 db-backup01 backup.sh[1831]: Archive created: /backup/mysql_inc_20260516.tar.gz
+May 16 01:03:45 db-backup01 backup.sh[1831]: SHA256 checksum verification passed
+May 16 01:03:47 db-backup01 backup.sh[1831]: Upload complete to backup-nas01:/mnt/backups/mysql/
+May 16 01:03:49 db-backup01 CRON[1822]: (root) CMD completed successfully

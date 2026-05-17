@@ -1,0 +1,80 @@
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Sysmon"/>
+    <EventID>1</EventID>
+    <Level>4</Level>
+    <TimeCreated SystemTime="2026-05-16T18:21:11.442Z"/>
+    <Computer>HR-WS22.corp.local</Computer>
+  </System>
+  <EventData>
+    <Data Name="UtcTime">2026-05-16 18:21:11.438</Data>
+    <Data Name="Image">C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe</Data>
+    <Data Name="CommandLine">powershell.exe -nop -w hidden -enc SQBmACgAJABQAFMAVgBlAHIAcwBpAG8AbgBUAGEAYgBsAGUAKQA=</Data>
+    <Data Name="User">CORP\j.santoso</Data>
+    <Data Name="ParentImage">C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE</Data>
+    <Data Name="ParentCommandLine">"C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE"</Data>
+  </EventData>
+</Event>
+
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Sysmon"/>
+    <EventID>3</EventID>
+    <Level>4</Level>
+    <TimeCreated SystemTime="2026-05-16T18:21:14.901Z"/>
+    <Computer>HR-WS22.corp.local</Computer>
+  </System>
+  <EventData>
+    <Data Name="UtcTime">2026-05-16 18:21:14.897</Data>
+    <Data Name="Image">C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe</Data>
+    <Data Name="DestinationIp">91.243.85.211</Data>
+    <Data Name="DestinationPort">443</Data>
+    <Data Name="Protocol">tcp</Data>
+    <Data Name="Initiated">true</Data>
+  </EventData>
+</Event>
+
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-TaskScheduler"/>
+    <EventID>106</EventID>
+    <Level>4</Level>
+    <TimeCreated SystemTime="2026-05-16T18:21:20.113Z"/>
+    <Computer>HR-WS22.corp.local</Computer>
+  </System>
+  <EventData>
+    <Data Name="TaskName">\WindowsUpdateCheck</Data>
+    <Data Name="UserContext">CORP\j.santoso</Data>
+  </EventData>
+</Event>
+
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Sysmon"/>
+    <EventID>13</EventID>
+    <Level>4</Level>
+    <TimeCreated SystemTime="2026-05-16T18:21:21.442Z"/>
+    <Computer>HR-WS22.corp.local</Computer>
+  </System>
+  <EventData>
+    <Data Name="EventType">SetValue</Data>
+    <Data Name="TargetObject">HKCU\Software\Microsoft\Windows\CurrentVersion\Run\WindowsUpdateCheck</Data>
+    <Data Name="Details">powershell.exe -ExecutionPolicy Bypass -File C:\Users\j.santoso\AppData\Roaming\updater.ps1</Data>
+    <Data Name="User">CORP\j.santoso</Data>
+  </EventData>
+</Event>
+
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System>
+    <Provider Name="Microsoft-Windows-Sysmon"/>
+    <EventID>11</EventID>
+    <Level>4</Level>
+    <TimeCreated SystemTime="2026-05-16T18:21:23.005Z"/>
+    <Computer>HR-WS22.corp.local</Computer>
+  </System>
+  <EventData>
+    <Data Name="TargetFilename">C:\Users\j.santoso\AppData\Roaming\updater.ps1</Data>
+    <Data Name="Image">C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe</Data>
+    <Data Name="CreationUtcTime">2026-05-16 18:21:22.998</Data>
+  </EventData>
+</Event>

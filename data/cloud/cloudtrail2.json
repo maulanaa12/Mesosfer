@@ -1,0 +1,103 @@
+[
+  {
+    "eventVersion": "1.08",
+    "userIdentity": {
+      "type": "AssumedRole",
+      "principalId": "AROAVX2EXAMPLEK92:web-deploy-session",
+      "arn": "arn:aws:sts::731842905611:assumed-role/WebDeploymentRole/web-deploy-session",
+      "accountId": "731842905611",
+      "accessKeyId": "ASIA3QEXAMPLE8HF9",
+      "sessionContext": {
+        "sessionIssuer": {
+          "type": "Role",
+          "principalId": "AROAVX2EXAMPLEK92",
+          "arn": "arn:aws:iam::731842905611:role/WebDeploymentRole",
+          "accountId": "731842905611",
+          "userName": "WebDeploymentRole"
+        },
+        "attributes": {
+          "creationDate": "2026-05-16T04:18:21Z",
+          "mfaAuthenticated": "true"
+        }
+      }
+    },
+    "eventTime": "2026-05-16T04:21:33Z",
+    "eventSource": "s3.amazonaws.com",
+    "eventName": "PutBucketPolicy",
+    "awsRegion": "us-west-2",
+    "sourceIPAddress": "203.0.113.47",
+    "userAgent": "[S3Console/0.4, aws-internal/3 aws-sdk-java/1.12.742 Linux/5.10.219-208.866.amzn2int.x86_64 OpenJDK_64-Bit_Server_VM/17.0.11+9-LTS java/17.0.11 vendor/Oracle_Corporation cfg/retry-mode/standard]",
+    "requestParameters": {
+      "bucketName": "northwind-static-assets-prod",
+      "bucketPolicy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"PublicReadGetObject\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::northwind-static-assets-prod/*\"}]}"
+    },
+    "responseElements": null,
+    "additionalEventData": {
+      "SignatureVersion": "SigV4",
+      "CipherSuite": "ECDHE-RSA-AES128-GCM-SHA256",
+      "bytesTransferredIn": 412,
+      "AuthenticationMethod": "AuthHeader"
+    },
+    "requestID": "T7J3M6K2V2A4P8R9",
+    "eventID": "6dfb5fc0-ef2c-4d95-86f7-f4cdb1f3a26b",
+    "readOnly": false,
+    "resources": [
+      {
+        "accountId": "731842905611",
+        "type": "AWS::S3::Bucket",
+        "ARN": "arn:aws:s3:::northwind-static-assets-prod"
+      }
+    ],
+    "eventType": "AwsApiCall",
+    "managementEvent": true,
+    "recipientAccountId": "731842905611",
+    "eventCategory": "Management",
+    "tlsDetails": {
+      "tlsVersion": "TLSv1.2",
+      "cipherSuite": "ECDHE-RSA-AES128-GCM-SHA256",
+      "clientProvidedHostHeader": "s3.us-west-2.amazonaws.com"
+    }
+  },
+  {
+    "eventVersion": "1.08",
+    "userIdentity": {
+      "type": "AssumedRole",
+      "principalId": "AROAVX2EXAMPLEK92:web-deploy-session",
+      "arn": "arn:aws:sts::731842905611:assumed-role/WebDeploymentRole/web-deploy-session",
+      "accountId": "731842905611",
+      "accessKeyId": "ASIA3QEXAMPLE8HF9"
+    },
+    "eventTime": "2026-05-16T04:22:07Z",
+    "eventSource": "s3.amazonaws.com",
+    "eventName": "PutBucketWebsite",
+    "awsRegion": "us-west-2",
+    "sourceIPAddress": "203.0.113.47",
+    "userAgent": "aws-cli/2.16.2 Python/3.12.2 Linux/6.1.90 botocore/2.5.1",
+    "requestParameters": {
+      "bucketName": "northwind-static-assets-prod",
+      "websiteConfiguration": {
+        "indexDocument": {
+          "suffix": "index.html"
+        },
+        "errorDocument": {
+          "key": "404.html"
+        }
+      }
+    },
+    "responseElements": null,
+    "requestID": "Y8P2C4N7K9W3L5M1",
+    "eventID": "eaefcb63-b4d6-42b0-8f43-cd27fc8d9175",
+    "readOnly": false,
+    "resources": [
+      {
+        "accountId": "731842905611",
+        "type": "AWS::S3::Bucket",
+        "ARN": "arn:aws:s3:::northwind-static-assets-prod"
+      }
+    ],
+    "eventType": "AwsApiCall",
+    "managementEvent": true,
+    "recipientAccountId": "731842905611",
+    "eventCategory": "Management"
+  }
+]

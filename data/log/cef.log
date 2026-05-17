@@ -1,0 +1,9 @@
+CEF:0|Okta|SSO|2026.5|30001|User Authentication Success|2|src=10.14.22.45 suser=amelia.tan@corp.local duser=amelia.tan@corp.local requestMethod=POST request=/app/salesforce/login outcome=success msg=User authenticated successfully via SAML externalId=00u92jkf88ab12cdE5 shost=LAPTOP-FIN-22 cs1Label=DeviceTrust cs1=managed cs2Label=MFA cs2=push-notification rt=May 16 2026 09:14:11
+
+CEF:0|Microsoft|AzureAD|2026.5|12002|Conditional Access Policy Applied|1|src=10.14.22.45 suser=amelia.tan@corp.local cs1Label=PolicyName cs1=Require_MFA_For_Finance cs2Label=ComplianceState cs2=compliant cs3Label=DeviceId cs3=4f21aa99-b882-4b91-bde1-1c552ee2f1c9 outcome=success rt=May 16 2026 09:14:12
+
+CEF:0|CrowdStrike|Falcon|7.12|40018|Endpoint Heartbeat|1|src=10.14.22.45 shost=LAPTOP-FIN-22 cs1Label=SensorVersion cs1=7.12.18409.0 cs2Label=Platform cs2=Windows11 cs3Label=Policy cs3=Finance_Workstations msg=Sensor heartbeat received outcome=success rt=May 16 2026 09:14:15
+
+CEF:0|Salesforce|LoginMonitor|248.1|50021|Successful Login|1|src=10.14.22.45 suser=amelia.tan@corp.local app=SalesCloud cs1Label=Browser cs1=Chrome/136.0.7103.92 cs2Label=SessionSecurityLevel cs2=high assurance request=/lightning/page/home outcome=success rt=May 16 2026 09:14:17
+
+CEF:0|PaloAltoNetworks|PAN-OS|11.1|10401|TLS Session Allowed|1|src=10.14.22.45 dst=13.110.6.11 spt=52144 dpt=443 proto=TCP app=https act=allow deviceExternalId=PA-EDGE-01 cs1Label=Rule cs1=Corp-Users-Web cs2Label=URLCategory cs2=business-and-economy rt=May 16 2026 09:14:18

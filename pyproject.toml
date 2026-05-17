@@ -1,0 +1,90 @@
+[project]
+name = "ozon"
+version = "0.1.0"
+description = "the minimal full-stack ChatGPT clone"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=4.0.0",
+    "fastapi>=0.117.1",
+    "kernels>=0.11.7",
+    "psutil>=7.1.0",
+    "rustbpe>=0.1.0",
+    "tiktoken>=0.11.0",
+    "tokenizers>=0.22.0",
+    "torch>=2.9.1,<3.0",
+    "transformers>=4.57.3",
+    "uvicorn>=0.36.0",
+    "wandb>=0.21.3",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+    "matplotlib>=3.10.8",
+    "pytest>=8.0.0",
+    "python-dotenv>=1.2.1",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# target torch to CUDA 12.8, ROCm 6.4, or CPU
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu128", extra = "cuda" },
+    { index = "pytorch-cu128", extra = "gpu" },
+    { index = "pytorch-rocm64", extra = "rocm" },
+]
+pytorch-triton-rocm = [
+    { index = "pytorch-rocm64", extra = "rocm" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-rocm64"
+url = "https://download.pytorch.org/whl/rocm6.4"
+explicit = true
+
+[project.optional-dependencies]
+cpu = [
+    "setuptools>=65.0.0",
+    "torch>=2.9.1,<3.0",
+]
+cuda = [
+    "torch>=2.9.1,<3.0",
+]
+gpu = [
+    "torch>=2.9.1,<3.0",
+]
+rocm = [
+    "torch>=2.9.1,<3.0",
+    "pytorch-triton-rocm==3.5.1",
+]
+
+[tool.uv]
+default-groups = []
+conflicts = [
+    [
+        { extra = "cpu" },
+        { extra = "cuda" },
+        { extra = "gpu" },
+        { extra = "rocm" },
+    ],
+]

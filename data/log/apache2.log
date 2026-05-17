@@ -1,0 +1,18 @@
+192.168.10.44 - - [16/May/2026:10:14:02 +0000] "GET /login.php HTTP/1.1" 200 4121 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+192.168.10.44 - - [16/May/2026:10:14:05 +0000] "POST /login.php HTTP/1.1" 401 2210 "[https://portal.internal/login.php](https://portal.internal/login.php)" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+203.0.113.91 - - [16/May/2026:10:14:11 +0000] "POST /login.php HTTP/1.1" 500 631 "-" "sqlmap/1.7.5#stable"
+[Sat May 16 10:14:11.447291 2026] [security2:error] [pid 21488] [client 203.0.113.91:44112] ModSecurity: Warning. Pattern match "(?i:(?:union(?:[\s\S]*?)select|select(?:[\s\S]*?)from))" at ARGS:username. [file "/etc/modsecurity/rules/sql_injection.conf"] [line "82"] [id "942100"] [msg "SQL Injection Attack Detected"] [severity "CRITICAL"] [hostname "app.finance.local"] [uri "/login.php"] [unique_id "aXZ9Q1fP2AAAB4KJt2A"]
+203.0.113.91 - - [16/May/2026:10:14:12 +0000] "POST /login.php HTTP/1.1" 500 644 "-" "sqlmap/1.7.5#stable"
+[Sat May 16 10:14:12.019201 2026] [security2:error] [pid 21490] [client 203.0.113.91:44116] ModSecurity: Warning. Operator GE matched 5 at TX:anomaly_score. [file "/etc/modsecurity/rules/REQUEST-949-BLOCKING-EVALUATION.conf"] [line "94"] [id "949110"] [msg "Inbound Anomaly Score Exceeded"] [severity "CRITICAL"] [hostname "app.finance.local"] [uri "/login.php"] [unique_id "aXZ9Q2fP2AAAB4KLt9C"]
+203.0.113.91 - - [16/May/2026:10:14:14 +0000] "GET /products.php?id=12%20UNION%20SELECT%201,2,database(),user()--%20- HTTP/1.1" 500 721 "-" "sqlmap/1.7.5#stable"
+[Sat May 16 10:14:14.811224 2026] [security2:error] [pid 21495] [client 203.0.113.91:44122] ModSecurity: Warning. Pattern match "(?:--|#|/\*)" at REQUEST_URI. [file "/etc/modsecurity/rules/sql_comment_abuse.conf"] [line "37"] [id "942440"] [msg "SQL Comment Sequence Detected"] [severity "ERROR"] [hostname "app.finance.local"] [uri "/products.php"] [unique_id "aXZ9RGfP2AAAB4KMx1D"]
+203.0.113.91 - - [16/May/2026:10:14:16 +0000] "GET /products.php?id=12%27%20OR%20%271%27=%271 HTTP/1.1" 200 5231 "-" "Mozilla/5.0"
+203.0.113.91 - - [16/May/2026:10:14:18 +0000] "GET /admin/export.php?table=users HTTP/1.1" 403 492 "-" "sqlmap/1.7.5#stable"
+[Sat May 16 10:14:18.335112 2026] [security2:error] [pid 21501] [client 203.0.113.91:44130] ModSecurity: Access denied with code 403 (phase 2). Matched phrase "information_schema" at ARGS:id. [file "/etc/modsecurity/rules/sql_metadata.conf"] [line "55"] [id "942260"] [msg "Database Schema Enumeration Attempt"] [severity "CRITICAL"] [hostname "app.finance.local"] [uri "/products.php"] [unique_id "aXZ9SGfP2AAAB4KNy7E"]
+192.168.10.12 - - [16/May/2026:10:14:25 +0000] "GET /dashboard.php HTTP/1.1" 200 8412 "[https://portal.internal/home.php](https://portal.internal/home.php)" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/123.0.0.0 Safari/537.36"
+
+192.168.5.44 - - [16/May/2026:09:14:11 +0000] "POST /login.php HTTP/1.1" 200 1421 "-" "Mozilla/5.0"
+203.0.113.91 - - [16/May/2026:09:14:14 +0000] "GET /login.php?username=admin'%20OR%201=1--&password=test HTTP/1.1" 403 532 "-" "sqlmap/1.7"
+203.0.113.91 - - [16/May/2026:09:14:16 +0000] "GET /login.php?id=1%20UNION%20SELECT%20NULL,NULL,NULL-- HTTP/1.1" 403 548 "-" "sqlmap/1.7"
+203.0.113.91 - - [16/May/2026:09:14:20 +0000] "POST /search.php HTTP/1.1" 403 601 "-" "sqlmap/1.7"
+192.168.5.44 - - [16/May/2026:09:14:25 +0000] "GET /dashboard HTTP/1.1" 200 8421 "-" "Mozilla/5.0"

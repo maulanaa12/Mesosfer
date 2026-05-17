@@ -1,0 +1,119 @@
+[
+  {
+    "authorization": {
+      "action": "Microsoft.KeyVault/vaults/secrets/set/action",
+      "scope": "/subscriptions/8ab3e941-55f9-4cf6-b7c4-1f3d2a5f9182/resourceGroups/prod-app-rg/providers/Microsoft.KeyVault/vaults/payments-kv-prod"
+    },
+    "caller": "svc.platformops@fabrikamcloud.onmicrosoft.com",
+    "channels": "Operation",
+    "claims": {
+      "aud": "https://vault.azure.net",
+      "iss": "https://sts.windows.net/72f988bf-86f1-41af-91ab-2d7cd011db47/",
+      "http://schemas.microsoft.com/identity/claims/objectidentifier": "6e7a91bc-1d3f-4bc7-a7f0-f1d8f7f8e2d1",
+      "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn": "svc.platformops@fabrikamcloud.onmicrosoft.com",
+      "ipaddr": "52.174.21.88",
+      "name": "Platform Operations Service"
+    },
+    "correlationId": "fca4e4db-0f0b-4b58-8a31-5f72b66bff18",
+    "eventDataId": "7d1b6b7f-f4dc-4920-bec0-9f14cb4b4b89",
+    "eventName": {
+      "value": "EndRequest",
+      "localizedValue": "End request"
+    },
+    "category": {
+      "value": "Administrative",
+      "localizedValue": "Administrative"
+    },
+    "eventTimestamp": "2026-05-16T06:02:41.4412913Z",
+    "id": "/subscriptions/8ab3e941-55f9-4cf6-b7c4-1f3d2a5f9182/events/7d1b6b7f-f4dc-4920-bec0-9f14cb4b4b89/ticks/638829073614412913",
+    "level": "Informational",
+    "operationId": "2eab48b0-7f96-4a79-90c0-4f93036f2c74",
+    "operationName": {
+      "value": "Microsoft.KeyVault/vaults/secrets/set/action",
+      "localizedValue": "Set Key Vault secret"
+    },
+    "resourceGroupName": "prod-app-rg",
+    "resourceProviderName": {
+      "value": "Microsoft.KeyVault",
+      "localizedValue": "Microsoft Key Vault"
+    },
+    "resourceType": {
+      "value": "Microsoft.KeyVault/vaults",
+      "localizedValue": "Microsoft.KeyVault/vaults"
+    },
+    "resourceId": "/subscriptions/8ab3e941-55f9-4cf6-b7c4-1f3d2a5f9182/resourceGroups/prod-app-rg/providers/Microsoft.KeyVault/vaults/payments-kv-prod",
+    "status": {
+      "value": "Succeeded",
+      "localizedValue": "Succeeded"
+    },
+    "submissionTimestamp": "2026-05-16T06:02:55.1823191Z",
+    "subscriptionId": "8ab3e941-55f9-4cf6-b7c4-1f3d2a5f9182",
+    "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+    "properties": {
+      "secretName": "StripeApiKey",
+      "secretVersion": "ad7f49f1fca2484f8f2d9134a6d0bc9e",
+      "vaultName": "payments-kv-prod"
+    }
+  },
+  {
+    "authorization": {
+      "action": "Microsoft.KeyVault/vaults/accessPolicies/write",
+      "scope": "/subscriptions/8ab3e941-55f9-4cf6-b7c4-1f3d2a5f9182/resourceGroups/prod-app-rg/providers/Microsoft.KeyVault/vaults/payments-kv-prod"
+    },
+    "caller": "svc.platformops@fabrikamcloud.onmicrosoft.com",
+    "channels": "Operation",
+    "claims": {
+      "aud": "https://management.azure.com/",
+      "iss": "https://sts.windows.net/72f988bf-86f1-41af-91ab-2d7cd011db47/",
+      "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn": "svc.platformops@fabrikamcloud.onmicrosoft.com",
+      "ipaddr": "52.174.21.88"
+    },
+    "correlationId": "8f5e0e8c-cce8-4ff2-98e7-6f3a2d8a10e7",
+    "eventDataId": "3b7b7184-9d98-49f4-bcb2-c4c71dc2eaa5",
+    "eventName": {
+      "value": "EndRequest",
+      "localizedValue": "End request"
+    },
+    "category": {
+      "value": "Administrative",
+      "localizedValue": "Administrative"
+    },
+    "eventTimestamp": "2026-05-16T06:05:08.8831219Z",
+    "id": "/subscriptions/8ab3e941-55f9-4cf6-b7c4-1f3d2a5f9182/events/3b7b7184-9d98-49f4-bcb2-c4c71dc2eaa5/ticks/638829075088831219",
+    "level": "Informational",
+    "operationId": "b8de7f6a-91cf-4e9c-a5d3-b24e9bc46cb7",
+    "operationName": {
+      "value": "Microsoft.KeyVault/vaults/accessPolicies/write",
+      "localizedValue": "Update Key Vault access policy"
+    },
+    "resourceGroupName": "prod-app-rg",
+    "resourceProviderName": {
+      "value": "Microsoft.KeyVault",
+      "localizedValue": "Microsoft Key Vault"
+    },
+    "resourceType": {
+      "value": "Microsoft.KeyVault/vaults",
+      "localizedValue": "Microsoft.KeyVault/vaults"
+    },
+    "resourceId": "/subscriptions/8ab3e941-55f9-4cf6-b7c4-1f3d2a5f9182/resourceGroups/prod-app-rg/providers/Microsoft.KeyVault/vaults/payments-kv-prod",
+    "status": {
+      "value": "Succeeded",
+      "localizedValue": "Succeeded"
+    },
+    "submissionTimestamp": "2026-05-16T06:05:16.9918207Z",
+    "subscriptionId": "8ab3e941-55f9-4cf6-b7c4-1f3d2a5f9182",
+    "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+    "properties": {
+      "accessPolicy": {
+        "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+        "objectId": "f94c2c17-6c21-43d9-9fd4-8e58db8ef3a1",
+        "permissions": {
+          "secrets": [
+            "get",
+            "list"
+          ]
+        }
+      }
+    }
+  }
+]

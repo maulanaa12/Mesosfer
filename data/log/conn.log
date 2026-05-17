@@ -1,0 +1,18 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	conn
+#open	2026-05-16-22-08-11
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	proto	service	duration	orig_bytes	resp_bytes	conn_state	local_orig	local_resp	missed_bytes	history	orig_pkts	orig_ip_bytes	resp_pkts	resp_ip_bytes
+#types	time	string	addr	port	addr	port	enum	string	interval	count	count	string	bool	bool	count	string	count	count	count	count
+1747433281.114522	Ck9jA12mXw91vL0Pj7	10.50.0.15	42122	10.50.10.21	22	tcp	ssh	3.221441	1248	2310	SF	T	T	0	ShADadFf	18	2172	22	3488
+1747433282.018711	CvL0xR4d0zqP8M2Ye3	10.50.0.15	42124	10.50.10.21	80	tcp	http	1.108231	412	892	SF	T	T	0	ShADadFf	9	884	11	1360
+1747433282.551114	Ct72Fa9Qa11PkfYh2	10.50.0.15	42128	10.50.10.22	443	tcp	ssl	2.904117	931	2044	SF	T	T	0	ShADadFf	14	1690	18	2810
+1747433283.221922	Cm90Ls7Kaf2PqR11x	10.50.0.15	42130	10.50.10.23	3306	tcp	mysql	0.782114	214	178	RSTO	T	T	0	ShR	5	474	4	338
+1747433284.104831	Cw31Kj3BnYp2Lm91u	10.50.0.15	42134	10.50.10.24	8080	tcp	http	1.337711	552	1180	SF	T	T	0	ShADadFf	10	1032	13	1744
+1747433285.440221	Cd12Mx5Poq8Rt2Aa9	10.50.0.15	42139	10.50.10.25	21	tcp	ftp	0.411028	72	0	REJ	T	T	0	Sr	2	152	0	0
+1747433286.119994	Ca82Qn7Htt4Wk1Lo0	10.50.0.15	42141	10.50.10.26	445	tcp	-	0.193288	0	0	S0	T	T	0	S	1	64	0	0
+1747433287.888551	Cx55Pl2Ddf7Uz3Qr4	10.50.0.15	42144	10.50.10.27	3389	tcp	rdp	4.771208	1822	3290	SF	T	T	0	ShADadFf	25	3020	29	4518
+1747433289.004771	Ce98Yu1Jlp6Er4Vm8	10.50.0.15	42150	10.50.10.28	161	udp	-	0.082114	88	214	SF	T	T	0	D	1	116	1	242
+1747433290.661112	Cr72Dn8Xop3Qc7Ye5	10.50.0.15	42152	10.50.10.29	5900	tcp	-	0.105119	0	0	REJ	T	T	0	Sr	1	64	0	0

@@ -1,0 +1,7 @@
+May 16 02:11:45 srv-auth01 sshd[21455]: Failed password for invalid user admin from 45.83.64.12 port 51222 ssh2
+May 16 02:11:48 srv-auth01 sshd[21458]: Failed password for root from 91.240.118.77 port 60311 ssh2
+May 16 02:11:51 srv-auth01 sshd[21460]: Failed password for invalid user test from 103.145.13.9 port 42218 ssh2
+May 16 02:11:54 srv-auth01 sshd[21463]: Failed password for root from 45.83.64.12 port 51241 ssh2
+May 16 02:11:58 srv-auth01 sshd[21466]: Failed password for invalid user oracle from 91.240.118.77 port 60329 ssh2
+May 16 02:12:03 srv-auth01 sshd[21470]: Failed password for invalid user backup from 103.145.13.9 port 42237 ssh2
+May 16 02:12:08 srv-auth01 sshd[21475]: Connection closed by authenticating user root 45.83.64.12 port 51252 [preauth]
