@@ -63,7 +63,9 @@ parser.add_argument("--embedding-lr", type=float, default=0.3, help="learning ra
 parser.add_argument("--unembedding-lr", type=float, default=0.008, help="learning rate for unembedding parameters (Adam)")
 parser.add_argument("--weight-decay", type=float, default=0.28, help="cautious weight decay for the Muon optimizer (for weights)")
 parser.add_argument("--matrix-lr", type=float, default=0.02, help="learning rate for matrix parameters (Muon)")
-parser.add_argument("--scalar-lr", type=float, default=0.5, help="learning rate for scalars (resid_lambdas, x0_lambdas)")
+parser.add_argument("--scalar-lr", type=float, default=0.2, help="learning rate for scalars (resid_lambdas, x0_lambdas)")
+parser.add_argument("--grad-clip", type=float, default=1.0, help="max grad norm for clipping (0 or negative = disable)")
+parser.add_argument("--skip-nan-step", type=int, default=1, help="skip optimizer step if loss is NaN/Inf (1=yes default, 0=no)")
 parser.add_argument("--warmup-steps", type=int, default=200, help="number of steps for LR warmup (200 recommended for depth 20+, 40 ok for tiny models)")
 parser.add_argument("--warmdown-ratio", type=float, default=0.65, help="ratio of iterations for LR warmdown")
 parser.add_argument("--final-lr-frac", type=float, default=0.05, help="final LR as fraction of initial LR")
@@ -530,15 +532,67 @@ while True:
     # evaluate the gradient
     synchronize()
     t0 = time.time()
+    nan_loss_detected = False
     for micro_step in range(grad_accum_steps):
         loss = model(x, y)
         train_loss = loss.detach() # for logging
+        # NaN/Inf detection on loss BEFORE backward (cheap CPU sync, but catches issues early)
+        if args.skip_nan_step:
+            if not torch.isfinite(train_loss):
+                nan_loss_detected = True
+                # Don't backward, just zero existing grads to prevent corruption
+                model.zero_grad(set_to_none=True)
+                if master_process:
+                    tqdm.write(f"⚠ Step {step:05d} micro_step {micro_step}: NaN/Inf loss detected, skipping update")
+                # Still need to advance dataloader so we don't get stuck
+                x, y, dataloader_state_dict = next(train_loader)
+                continue
         loss = loss / grad_accum_steps # each .backward() is a grad sum => normalize loss here
         if scaler is not None:
             scaler.scale(loss).backward()
         else:
             loss.backward()
         x, y, dataloader_state_dict = next(train_loader) # prefetch the next batch while the GPU is busy with forward/backward
+
+    # If we hit NaN, skip optimizer step entirely
+    if nan_loss_detected:
+        synchronize()
+        t1 = time.time()
+        dt = t1 - t0
+        train_loss_f = float('nan')
+        # Skip optimizer step, advance state
+        if step > 10:
+            total_training_time += dt
+        first_step_of_run = (step == 0) or (resuming and step == args.resume_from_step)
+        step += 1
+        if master_process:
+            pbar.update(1)
+        continue
+
+    # Gradient clipping (before optimizer step) to prevent explosion
+    if args.grad_clip > 0:
+        if scaler is not None:
+            # Need to unscale before clipping when using GradScaler
+            scaler.unscale_(optimizer)
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.grad_clip)
+        # Detect inf/nan in grad norm — if found, skip step
+        if args.skip_nan_step and not torch.isfinite(grad_norm):
+            if master_process:
+                tqdm.write(f"⚠ Step {step:05d}: grad_norm is NaN/Inf ({grad_norm.item()}), skipping update")
+            model.zero_grad(set_to_none=True)
+            if scaler is not None:
+                scaler.update()  # still need to update scaler state
+            synchronize()
+            t1 = time.time()
+            dt = t1 - t0
+            if step > 10:
+                total_training_time += dt
+            first_step_of_run = (step == 0) or (resuming and step == args.resume_from_step)
+            step += 1
+            if master_process:
+                pbar.update(1)
+            continue
+
     # step the optimizer
     lrm = get_lr_multiplier(step)
     muon_momentum = get_muon_momentum(step)
@@ -549,7 +603,9 @@ while True:
             group["momentum"] = muon_momentum
             group["weight_decay"] = muon_weight_decay
     if scaler is not None:
-        scaler.unscale_(optimizer)
+        # If we already unscaled above for grad clipping, don't unscale again
+        if args.grad_clip <= 0:
+            scaler.unscale_(optimizer)
         # In distributed training, all ranks must agree on whether to skip the step.
         # Each rank may independently encounter inf/nan gradients, so we all-reduce
         # the found_inf flag (MAX = if any rank found inf, all ranks skip).
