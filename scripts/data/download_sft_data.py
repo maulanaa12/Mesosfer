@@ -192,6 +192,42 @@ CONVERTERS = {
     "dpo_to_sft": convert_dpo_to_sft,
 }
 
+
+def convert_system_user_assistant(row) -> list | None:
+    """Handle datasets with separate system/user/assistant columns (e.g. Trendyol)."""
+    user = row.get("user") or row.get("instruction") or row.get("question") or ""
+    assistant = row.get("assistant") or row.get("response") or row.get("output") or ""
+    if not user or not assistant:
+        return None
+    if not isinstance(user, str) or not isinstance(assistant, str):
+        return None
+    return [
+        {"role": "user", "content": user.strip()},
+        {"role": "assistant", "content": assistant.strip()},
+    ]
+
+
+def convert_instruction_answer(row) -> list | None:
+    """Handle datasets with instruction/answer columns (e.g. Tiamz)."""
+    instruction = row.get("instruction") or row.get("question") or row.get("input") or ""
+    answer = row.get("answer") or row.get("output") or row.get("response") or ""
+    if not instruction or not answer:
+        return None
+    if not isinstance(instruction, str) or not isinstance(answer, str):
+        return None
+    return [
+        {"role": "user", "content": instruction.strip()},
+        {"role": "assistant", "content": answer.strip()},
+    ]
+
+
+CONVERTERS = {
+    "messages": convert_messages_format,
+    "dpo_to_sft": convert_dpo_to_sft,
+    "system_user_assistant": convert_system_user_assistant,
+    "instruction_answer": convert_instruction_answer,
+}
+
 # =============================================================================
 # Download logic
 # =============================================================================

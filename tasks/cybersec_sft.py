@@ -204,6 +204,18 @@ class UltraChatSFT(RobustCustomJSON):
         super().__init__(filepath=_sft_path("ultrachat_sft.jsonl", sft_dir), **kwargs)
 
 
+class TrendyolCyberSFT(RobustCustomJSON):
+    """Trendyol Cybersecurity Instruction Tuning — 53K defensive cybersec rows."""
+    def __init__(self, sft_dir=None, **kwargs):
+        super().__init__(filepath=_sft_path("trendyol_cyber_sft.jsonl", sft_dir), **kwargs)
+
+
+class TiamzCybersecSFT(RobustCustomJSON):
+    """Tiamz cybersecurity instruction dataset — 12K Q&A pairs."""
+    def __init__(self, sft_dir=None, **kwargs):
+        super().__init__(filepath=_sft_path("tiamz_cybersec_sft.jsonl", sft_dir), **kwargs)
+
+
 # -----------------------------------------------------------------------------
 # Mixture builders
 
@@ -220,6 +232,8 @@ def build_cybersec_sft_tasks(
     cybernative_vuln_epochs: int = 3,
     openhermes_epochs: int = 1,
     ultrachat_epochs: int = 1,
+    trendyol_cyber_epochs: int = 1,
+    tiamz_cybersec_epochs: int = 2,
     include_english: bool = True,
     sft_dir: str | None = None,
 ) -> list:
@@ -283,6 +297,10 @@ def build_cybersec_sft_tasks(
         tasks.append(OpenHermesSFT(sft_dir=sft_dir))
     for _ in range(ultrachat_epochs):
         tasks.append(UltraChatSFT(sft_dir=sft_dir))
+    for _ in range(trendyol_cyber_epochs):
+        tasks.append(TrendyolCyberSFT(sft_dir=sft_dir))
+    for _ in range(tiamz_cybersec_epochs):
+        tasks.append(TiamzCybersecSFT(sft_dir=sft_dir))
 
     # Filter out empty tasks (e.g. if all rows were skipped)
     tasks = [t for t in tasks if len(t) > 0]
