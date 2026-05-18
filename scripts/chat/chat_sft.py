@@ -76,6 +76,11 @@ parser.add_argument("--tool-oriented-epochs", type=int, default=20, help="epochs
 parser.add_argument("--mythos-epochs", type=int, default=4, help="epochs of mythos_combined_sft (110 rows × language)")
 parser.add_argument("--mesosfer-validation-epochs", type=int, default=2, help="epochs of mesosfer_validation_conversations (300 rows × language)")
 parser.add_argument("--gemini-teacher-epochs", type=int, default=2, help="epochs of gemini_teacher_conversations (373 rows)")
+parser.add_argument("--primus-instruct-epochs", type=int, default=1, help="epochs of Primus-Instruct (~100K rows, gated, 0=skip)")
+parser.add_argument("--primus-reasoning-epochs", type=int, default=1, help="epochs of Primus-Reasoning (~50K rows, gated, 0=skip)")
+parser.add_argument("--cybernative-vuln-epochs", type=int, default=3, help="epochs of CyberNative vuln DPO (~4.6K rows)")
+parser.add_argument("--openhermes-epochs", type=int, default=1, help="epochs of OpenHermes-2.5 (50K rows, 0=skip)")
+parser.add_argument("--ultrachat-epochs", type=int, default=1, help="epochs of UltraChat 200K (100K rows, 0=skip)")
 parser.add_argument("--include-english-sft", type=int, default=1, help="1 = include _en variants of bilingual cybersec datasets, 0 = ID only")
 parser.add_argument("--disable-cybersec-sft", action="store_true", help="disable all cybersecurity SFT datasets (for ablation)")
 args = parser.parse_args()
@@ -207,6 +212,11 @@ if not args.disable_cybersec_sft:
         mythos_epochs=args.mythos_epochs,
         mesosfer_validation_epochs=args.mesosfer_validation_epochs,
         gemini_teacher_epochs=args.gemini_teacher_epochs,
+        primus_instruct_epochs=args.primus_instruct_epochs,
+        primus_reasoning_epochs=args.primus_reasoning_epochs,
+        cybernative_vuln_epochs=args.cybernative_vuln_epochs,
+        openhermes_epochs=args.openhermes_epochs,
+        ultrachat_epochs=args.ultrachat_epochs,
         include_english=bool(args.include_english_sft),
     )
     train_tasks.extend(cybersec_tasks)

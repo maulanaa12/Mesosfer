@@ -174,6 +174,36 @@ class GeminiTeacher(RobustCustomJSON):
         super().__init__(filepath=_sft_path("gemini_teacher_conversations.jsonl", sft_dir), **kwargs)
 
 
+class PrimusInstruct(RobustCustomJSON):
+    """Trend Micro Primus-Instruct cybersecurity instruction pairs. ~100K rows (gated)."""
+    def __init__(self, sft_dir=None, **kwargs):
+        super().__init__(filepath=_sft_path("primus_instruct.jsonl", sft_dir), **kwargs)
+
+
+class PrimusReasoning(RobustCustomJSON):
+    """Trend Micro Primus-Reasoning cybersecurity reasoning distillation. ~50K rows (gated)."""
+    def __init__(self, sft_dir=None, **kwargs):
+        super().__init__(filepath=_sft_path("primus_reasoning.jsonl", sft_dir), **kwargs)
+
+
+class CyberNativeVulnDPO(RobustCustomJSON):
+    """CyberNative vulnerable vs fixed code pairs converted to SFT format. ~4.6K rows."""
+    def __init__(self, sft_dir=None, **kwargs):
+        super().__init__(filepath=_sft_path("cybernative_vuln_dpo_sft.jsonl", sft_dir), **kwargs)
+
+
+class OpenHermesSFT(RobustCustomJSON):
+    """OpenHermes-2.5 general instruction dataset (capped at 50K rows)."""
+    def __init__(self, sft_dir=None, **kwargs):
+        super().__init__(filepath=_sft_path("openhermes_sft.jsonl", sft_dir), **kwargs)
+
+
+class UltraChatSFT(RobustCustomJSON):
+    """UltraChat 200K multi-turn conversations (capped at 100K rows)."""
+    def __init__(self, sft_dir=None, **kwargs):
+        super().__init__(filepath=_sft_path("ultrachat_sft.jsonl", sft_dir), **kwargs)
+
+
 # -----------------------------------------------------------------------------
 # Mixture builders
 
@@ -185,6 +215,11 @@ def build_cybersec_sft_tasks(
     mythos_epochs: int = 4,
     mesosfer_validation_epochs: int = 2,
     gemini_teacher_epochs: int = 2,
+    primus_instruct_epochs: int = 1,
+    primus_reasoning_epochs: int = 1,
+    cybernative_vuln_epochs: int = 3,
+    openhermes_epochs: int = 1,
+    ultrachat_epochs: int = 1,
     include_english: bool = True,
     sft_dir: str | None = None,
 ) -> list:
@@ -203,6 +238,11 @@ def build_cybersec_sft_tasks(
         mythos_epochs: epochs of mythos_combined_sft (110 rows each)
         mesosfer_validation_epochs: epochs of mesosfer validation (300 rows each)
         gemini_teacher_epochs: epochs of gemini teacher (373 rows)
+        primus_instruct_epochs: epochs of Primus-Instruct (~100K rows, gated)
+        primus_reasoning_epochs: epochs of Primus-Reasoning (~50K rows, gated)
+        cybernative_vuln_epochs: epochs of CyberNative vuln DPO (~4.6K rows)
+        openhermes_epochs: epochs of OpenHermes-2.5 (50K rows)
+        ultrachat_epochs: epochs of UltraChat 200K (100K rows)
         include_english: whether to also include _en variants of bilingual datasets
         sft_dir: override path to data/sft/ (default: repo_root/data/sft)
 
@@ -231,6 +271,18 @@ def build_cybersec_sft_tasks(
         tasks.append(ToolOrientedCyber(sft_dir=sft_dir))
     for _ in range(gemini_teacher_epochs):
         tasks.append(GeminiTeacher(sft_dir=sft_dir))
+
+    # External HF datasets (only included if files exist — downloaded via download_sft_data.py)
+    for _ in range(primus_instruct_epochs):
+        tasks.append(PrimusInstruct(sft_dir=sft_dir))
+    for _ in range(primus_reasoning_epochs):
+        tasks.append(PrimusReasoning(sft_dir=sft_dir))
+    for _ in range(cybernative_vuln_epochs):
+        tasks.append(CyberNativeVulnDPO(sft_dir=sft_dir))
+    for _ in range(openhermes_epochs):
+        tasks.append(OpenHermesSFT(sft_dir=sft_dir))
+    for _ in range(ultrachat_epochs):
+        tasks.append(UltraChatSFT(sft_dir=sft_dir))
 
     # Filter out empty tasks (e.g. if all rows were skipped)
     tasks = [t for t in tasks if len(t) > 0]
