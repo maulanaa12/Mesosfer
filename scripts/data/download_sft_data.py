@@ -113,6 +113,28 @@ SOURCES = {
         "max_rows": 100_000,
         "gated": False,
     },
+    # -------------------------------------------------------------------------
+    # Trendyol Cybersecurity Instruction Tuning — 53K rows, defensive cybersec
+    "trendyol_cyber_sft": {
+        "hf_name": "Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset",
+        "split": "train",
+        "streaming": False,
+        "format": "system_user_assistant",
+        "output_file": "trendyol_cyber_sft.jsonl",
+        "max_rows": 53_000,
+        "gated": False,
+    },
+    # -------------------------------------------------------------------------
+    # Tiamz cybersecurity instruction dataset — 12K Q&A pairs
+    "tiamz_cybersec": {
+        "hf_name": "Tiamz/cybersecurity-instruction-dataset",
+        "split": "train",
+        "streaming": False,
+        "format": "instruction_answer",
+        "output_file": "tiamz_cybersec_sft.jsonl",
+        "max_rows": 15_000,
+        "gated": False,
+    },
 }
 
 # =============================================================================
