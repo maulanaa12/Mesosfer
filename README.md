@@ -10,8 +10,12 @@ Mesosfer is inspired by [nanoGPT](https://github.com/karpathy/nanoGPT) and follo
 - **Tokenizer Training** — Custom BPE tokenizer (64K vocab, cybersec-aware)
 - **Supervised Fine-Tuning (SFT)** — Instruction tuning with cybersecurity datasets
 - **Reinforcement Learning (RL)** — GRPO-style RL on cybersecurity tasks
+- **RLHF Data Collection** — Human feedback via thumbs up/down UI, stored to `data/rlhf/`
 - **Evaluation** — CORE benchmark + cybersecurity domain probes
 - **Chat Interface** — CLI and WebUI for model interaction
+  - Syntax-highlighted code blocks (Python, Rust, JSON, etc.)
+  - Markdown rendering (headings, lists, bold/italic, inline code)
+  - Welcome screen with centered input on new conversation
 
 ## Architecture Highlights
 
@@ -182,7 +186,76 @@ python -m scripts.chat.chat_cli -p "Explain CVE-2021-44228 (Log4Shell)"
 
 # Web UI (opens http://localhost:8000)
 python -m scripts.chat.chat_web
+
+# Web UI — multi-GPU (4 workers)
+python -m scripts.chat.chat_web --num-gpus 4
+
+# Web UI — load specific checkpoint
+python -m scripts.chat.chat_web --model-tag d24 --step 14000
 ```
+
+The Web UI includes:
+- **Welcome screen** — centered input shown before the first message
+- **Syntax-highlighted code blocks** — Python, Rust, JSON, Bash, and more, with a one-click copy button
+- **Markdown rendering** — headings, lists, bold/italic, inline code
+- **Thumbs up / down feedback** — per-response rating that saves to `data/rlhf/feedback.jsonl`
+
+---
+
+### 8. Collect RLHF Feedback
+
+Human preference data is collected automatically while chatting via the Web UI.
+Each 👍 or 👎 click on an assistant response appends a record to `data/rlhf/feedback.jsonl`.
+
+```jsonc
+{
+  "timestamp": "2026-05-20T10:00:00+00:00",
+  "message_index": 1,
+  "rating": "negative",
+  "reason": "factually_incorrect",
+  "comment": "The CVE number is wrong.",
+  "conversation": [
+    { "role": "user",      "content": "..." },
+    { "role": "assistant", "content": "..." }
+  ]
+}
+```
+
+Use this data to train a reward model or run DPO fine-tuning in a future step.
+
+---
+
+## Web UI API Endpoints
+
+The Web UI server (`scripts/chat/chat_web.py`) exposes the following endpoints:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/` | Serve the chat UI (`mesosfer/ui.html`) |
+| `GET` | `/logo.svg` | Serve the Mesosfer logo |
+| `GET` | `/interface/*` | Serve static assets (CSS, JS) |
+| `POST` | `/chat/completions` | Streaming chat completion (SSE) |
+| `POST` | `/feedback` | Submit thumbs up/down feedback (saved to `data/rlhf/feedback.jsonl`) |
+| `GET` | `/health` | Health check + worker pool status |
+| `GET` | `/stats` | Worker pool statistics and GPU utilization |
+
+### Feedback endpoint payload
+
+```json
+POST /feedback
+{
+  "message_index": 1,
+  "rating": "negative",
+  "reason": "factually_incorrect",
+  "comment": "Optional free-text",
+  "conversation": [
+    { "role": "user",      "content": "..." },
+    { "role": "assistant", "content": "..." }
+  ]
+}
+```
+
+Valid `reason` values: `inappropriate_response`, `continuous_repetition`, `factually_incorrect`, `too_verbose`, `formatting_issues`, `other`.
 
 ---
 
@@ -203,6 +276,9 @@ Step 5:  scripts.eval.base_eval
 Step 6:  scripts.chat.chat_sft
          ↓
 Step 7:  scripts.chat.chat_cli / chat_web
+         ↓
+Step 8:  Collect RLHF feedback via Web UI  →  data/rlhf/feedback.jsonl
+         (future: reward model training / DPO)
 ```
 
 ---
@@ -215,7 +291,13 @@ mesosfer/
 │   ├── model/              # GPT model, attention, optimization
 │   ├── data/               # Dataset download, dataloader, tokenizer
 │   ├── eval/               # CORE eval, BPB, engine
-│   └── utils/              # Common utilities, checkpointing, reporting
+│   ├── utils/              # Common utilities, checkpointing, reporting
+│   ├── interface/          # Web UI static assets
+│   │   ├── style.css       # All UI styles (chat, code blocks, feedback, empty state)
+│   │   ├── chat.js         # Chat logic, streaming, slash commands, markdown rendering
+│   │   ├── feedback.js     # Thumbs up/down, feedback modal, POST /feedback
+│   │   └── markdown.js     # Markdown parser + syntax-highlighted code block renderer
+│   └── ui.html             # HTML shell (loads interface/ assets)
 ├── scripts/
 │   ├── train/              # base_train.py, tok_train.py
 │   ├── chat/               # chat_sft.py, chat_rl.py, chat_cli.py, chat_web.py
@@ -228,6 +310,8 @@ mesosfer/
 │   ├── log_nl/             # NL narratives from logs (output, used in training)
 │   ├── cloud_nl/           # NL narratives from cloud logs (output, used in training)
 │   ├── sft/                # Cybersecurity SFT conversations
+│   ├── rlhf/               # Human feedback collected via Web UI
+│   │   └── feedback.jsonl  # Appended at runtime (gitignored)
 │   ├── synthetic-ir/       # Synthetic incident response data
 │   ├── synthetic-soc/      # Synthetic SOC analyst data
 │   └── reverse-engineering/ # RE/exploitation analysis data
