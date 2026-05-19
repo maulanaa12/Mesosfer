@@ -16,3 +16,7 @@ wandb/
 superpowers/
 superpowers/specs/
 .kiro/
+.vscode/
+
+# RLHF collected feedback (runtime data, not for version control)
+data/rlhf/feedback.jsonl

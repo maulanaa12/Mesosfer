@@ -38,10 +38,13 @@ import asyncio
 import logging
 import random
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
-from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, field_validator
 from typing import List, Optional, AsyncGenerator
 from dataclasses import dataclass
 from mesosfer.utils.common import compute_init, autodetect_device_type
@@ -150,6 +153,35 @@ class ChatRequest(BaseModel):
     max_tokens: Optional[int] = None
     top_k: Optional[int] = None
 
+# Feedback storage path (relative to project root)
+RLHF_FEEDBACK_PATH = Path("data/rlhf/feedback.jsonl")
+
+class FeedbackRequest(BaseModel):
+    message_index: int
+    rating: str          # 'positive' | 'negative'
+    reason: Optional[str] = None
+    comment: Optional[str] = None
+    conversation: List[ChatMessage]
+
+    @field_validator("rating")
+    @classmethod
+    def validate_rating(cls, v: str) -> str:
+        if v not in ("positive", "negative"):
+            raise ValueError("rating must be 'positive' or 'negative'")
+        return v
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, v: Optional[str]) -> Optional[str]:
+        allowed = {
+            "inappropriate_response", "continuous_repetition",
+            "factually_incorrect", "too_verbose",
+            "formatting_issues", "other", None,
+        }
+        if v not in allowed:
+            raise ValueError(f"reason must be one of {allowed}")
+        return v
+
 def validate_chat_request(request: ChatRequest):
     """Validate chat request to prevent abuse."""
     # Check number of messages
@@ -230,6 +262,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Serve CSS / JS from mesosfer/interface/ at /interface/*
+app.mount(
+    "/interface",
+    StaticFiles(directory=os.path.join("mesosfer", "interface")),
+    name="interface",
 )
 
 @app.get("/")
@@ -399,6 +438,50 @@ async def stats():
             } for w in worker_pool.workers
         ]
     }
+
+@app.post("/feedback", status_code=201)
+async def submit_feedback(request: FeedbackRequest):
+    """
+    Receive human feedback on an assistant response and persist it to JSONL.
+
+    Each record written to data/rlhf/feedback.jsonl contains:
+    - timestamp (ISO-8601 UTC)
+    - message_index: position of the rated assistant message in the conversation
+    - rating: 'positive' | 'negative'
+    - reason: optional categorical reason (negative feedback only)
+    - comment: optional free-text comment
+    - conversation: full message history up to and including the rated response
+    """
+    # Sanitise comment to strip potential PII / injection attempts
+    comment = request.comment
+    if comment and len(comment) > 2000:
+        comment = comment[:2000]
+
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "message_index": request.message_index,
+        "rating": request.rating,
+        "reason": request.reason,
+        "comment": comment,
+        "conversation": [
+            {"role": msg.role, "content": msg.content}
+            for msg in request.conversation
+        ],
+    }
+
+    try:
+        RLHF_FEEDBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with RLHF_FEEDBACK_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError as exc:
+        logger.error("Failed to write feedback record: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to persist feedback")
+
+    logger.info(
+        "Feedback received | rating=%s | reason=%s | msg_idx=%d",
+        request.rating, request.reason, request.message_index,
+    )
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn
