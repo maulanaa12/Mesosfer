@@ -450,9 +450,9 @@ DATASET_SOURCES = {
     # =========================================================================
     # CYBERSECURITY (Public Replacements)
     # =========================================================================
-    # max_tokens di sini adalah UPPER BOUND. Dataset kecil (trendyol 99K rows,
-    # circl 39K rows, fenrir 99K rows) tidak akan mencapai batas ini.
-    # Total actual ~4.5-5B token, compute-optimal untuk d20 di L4 (ratio ~11x).
+    # max_tokens here is an UPPER BOUND. Small datasets (trendyol 99K rows,
+    # circl 39K rows, fenrir 99K rows) will not reach this limit.
+    # Total actual ~4.5-5B tokens, compute-optimal for d20 on L4 (ratio ~11x).
     "trendyol_cyber": {
         "hf_name": "Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset",
         "description": "Cybersecurity instruction tuning dataset",
@@ -473,7 +473,7 @@ DATASET_SOURCES = {
     },
     "circl_vuln_patch": {
         "hf_name": "CIRCL/vulnerability-cwe-patch",
-        "description": "39K vulns dengan real patches dari GitHub/GitLab",
+        "description": "39K vulns with real patches from GitHub/GitLab",
         "category": "cybersecurity",
         "max_tokens": 200_000_000,
         "text_column": None,

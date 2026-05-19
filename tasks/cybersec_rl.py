@@ -317,12 +317,12 @@ if __name__ == "__main__":
 
     sample_responses = {
         "good": (
-            "Triase awal untuk login gagal massal:\n"
-            "1. Hitung jumlah failed login per IP dan per user dalam window 5 menit.\n"
-            "2. Cek apakah ada login sukses setelah burst kegagalan (T1110.001 brute force).\n"
-            "3. Lakukan threat hunting di SIEM untuk IOC tambahan.\n"
-            "4. Containment: blokir IP di firewall, reset password user yang ditargetkan.\n"
-            "5. Aktifkan MFA dan review least privilege untuk akun admin."
+            "Initial triage for mass failed logins:\n"
+            "1. Count failed login attempts per IP and per user within a 5-minute window.\n"
+            "2. Check whether any successful login followed a burst of failures (T1110.001 brute force).\n"
+            "3. Perform threat hunting in the SIEM for additional IOCs.\n"
+            "4. Containment: block the IP at the firewall, reset passwords for targeted accounts.\n"
+            "5. Enable MFA and review least privilege for admin accounts."
         ),
         "weak": "Just check the logs and block the IP.",
         "marketing": (

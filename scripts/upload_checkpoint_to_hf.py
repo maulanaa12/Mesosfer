@@ -1,29 +1,28 @@
 #!/usr/bin/env python3
 """
-Upload checkpoint ke HuggingFace Hub (private repo).
+Upload checkpoint to HuggingFace Hub (private repo).
 
-Jalankan tanpa argumen untuk mode interaktif (menu pilihan).
-Atau gunakan flag langsung untuk non-interaktif / scripting.
+Run without arguments for interactive mode (selection menu).
+Or use flags directly for non-interactive / scripting.
 
 Usage:
-    # Mode interaktif (direkomendasikan)
+    # Interactive mode (recommended)
     python scripts/upload_checkpoint_to_hf.py
 
-    # Upload checkpoint terbaru (step tertinggi)
+    # Upload the latest checkpoint (highest step)
     python scripts/upload_checkpoint_to_hf.py --latest
 
-    # Upload checkpoint terbaik (val_bpb terendah)
+    # Upload the best checkpoint (lowest val_bpb)
     python scripts/upload_checkpoint_to_hf.py --best
 
-    # Upload step tertentu
+    # Upload a specific step
     python scripts/upload_checkpoint_to_hf.py --step 8000
 
-    # Upload model + meta saja (skip optimizer state, lebih cepat)
+    # Upload model + meta only (skip optimizer state, faster)
     python scripts/upload_checkpoint_to_hf.py --best --model-only
 
     # Custom repo
-    python scripts/upload_checkpoint_to_hf.py --best --repo Dummy9898/mesosfer-checkpoints
-"""
+    python scripts/upload_checkpoint_to_hf.py --best --repo Dummy9898/mesosfer-checkpoints"""
 
 import os
 import sys
@@ -35,10 +34,10 @@ from pathlib import Path
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def find_best_checkpoint(ckpt_dir: Path) -> tuple[int, float]:
-    """Cari checkpoint dengan val_bpb terendah dari semua meta_*.json."""
+    """Search for the checkpoint with the lowest val_bpb across all meta_*.json files."""
     meta_files = sorted(ckpt_dir.glob("meta_*.json"))
     if not meta_files:
-        raise FileNotFoundError(f"Tidak ada file meta_*.json di {ckpt_dir}")
+        raise FileNotFoundError(f"Could not find any meta_*.json files. {ckpt_dir}")
 
     best_step = None
     best_bpb = float("inf")
@@ -55,19 +54,19 @@ def find_best_checkpoint(ckpt_dir: Path) -> tuple[int, float]:
                 best_bpb = val_bpb
                 best_step = step
         except Exception as e:
-            print(f"  WARN: Gagal baca {meta_path.name}: {e}")
+            print(f"  WARN: Failed to read {meta_path.name}: {e}")
 
     if best_step is None:
-        raise ValueError("Tidak ada checkpoint dengan val_bpb yang valid")
+        raise ValueError("Could not find any checkpoints with a valid val_bpb value.")
 
     return best_step, best_bpb
 
 
 def find_latest_checkpoint(ckpt_dir: Path) -> tuple[int, float | None]:
-    """Cari checkpoint dengan step tertinggi (paling baru)."""
+    """Find the checkpoint with the highest step (latest)."""
     meta_files = sorted(ckpt_dir.glob("meta_*.json"))
     if not meta_files:
-        raise FileNotFoundError(f"Tidak ada file meta_*.json di {ckpt_dir}")
+        raise FileNotFoundError(f"No meta_*.json files found in the current directory. {ckpt_dir}")
 
     latest_meta = meta_files[-1]
     step = int(latest_meta.stem.split("_")[1])
@@ -84,9 +83,9 @@ def find_latest_checkpoint(ckpt_dir: Path) -> tuple[int, float | None]:
 
 def load_all_checkpoints(ckpt_dir: Path) -> list[dict]:
     """
-    Baca semua meta_*.json dan kembalikan list dict:
+    Read all meta_*.json files and return a list of dicts:
     [{"step": int, "val_bpb": float|None, "label": str}, ...]
-    diurutkan dari step terkecil ke terbesar.
+    sorted from lowest to highest step.
     """
     meta_files = sorted(ckpt_dir.glob("meta_*.json"))
     rows = []
@@ -108,7 +107,7 @@ def load_all_checkpoints(ckpt_dir: Path) -> list[dict]:
             best_bpb = val_bpb
         rows.append({"step": step, "val_bpb": val_bpb})
 
-    # Tandai best
+    # Mark best
     for row in rows:
         bpb = row["val_bpb"]
         bpb_str = f"{bpb:.6f}" if isinstance(bpb, float) else "N/A    "
@@ -120,10 +119,10 @@ def load_all_checkpoints(ckpt_dir: Path) -> list[dict]:
 
 
 def list_checkpoints(ckpt_dir: Path):
-    """Tampilkan semua checkpoint beserta val_bpb-nya."""
+    """Show all checkpoints along with their val_bpb."""
     rows = load_all_checkpoints(ckpt_dir)
     if not rows:
-        print("Tidak ada checkpoint ditemukan.")
+        print("No checkpoints found.")
         return
 
     print(f"\n{'Step':<10} {'val_bpb':<12} {'Status'}")
@@ -140,9 +139,9 @@ def list_checkpoints(ckpt_dir: Path):
 
 def checkbox_select(rows: list[dict]) -> list[int]:
     """
-    Tampilkan daftar checkpoint sebagai checkbox interaktif.
-    Navigasi: ↑/↓ atau j/k, SPACE untuk toggle, ENTER untuk konfirmasi, q/ESC untuk batal.
-    Kembalikan list step yang dipilih.
+    Display checkpoints as an interactive checkbox list.
+    Navigation: ↑/↓ or j/k to move, SPACE to toggle, ENTER to confirm, q/ESC to cancel.
+    Return a list of selected steps..
     """
     try:
         from prompt_toolkit import Application
@@ -153,17 +152,17 @@ def checkbox_select(rows: list[dict]) -> list[int]:
         from prompt_toolkit.formatted_text import HTML
         from prompt_toolkit.styles import Style
     except ImportError:
-        print("ERROR: prompt_toolkit tidak terinstall.")
-        print("Jalankan: pip install prompt_toolkit")
+        print("ERROR: prompt_toolkit is not installed.")
+        print("Run: pip install prompt_toolkit")
         sys.exit(1)
 
     if not rows:
-        print("Tidak ada checkpoint tersedia.")
+        print("No checkpoints found.")
         return []
 
     n = len(rows)
-    cursor = [0]          # posisi kursor saat ini
-    selected = set()      # index yang dipilih
+    cursor = [0]          # current cursor position
+    selected = set()      # selected indices
     cancelled = [False]
 
     style = Style.from_dict({
@@ -177,7 +176,7 @@ def checkbox_select(rows: list[dict]) -> list[int]:
     def get_text():
         lines = []
         lines.append(HTML(
-            "<hint>  ↑/↓ navigasi   SPACE pilih/batal   ENTER konfirmasi   q batal\n\n</hint>"
+            "<hint>  ↑/↓ navigate   SPACE select/deselect   ENTER confirm   q cancel\n\n</hint>"
         ))
         for i, row in enumerate(rows):
             is_cursor = (i == cursor[0])
@@ -196,7 +195,7 @@ def checkbox_select(rows: list[dict]) -> list[int]:
                 lines.append(HTML(f"    {checkbox} {label}\n"))
 
         sel_count = len(selected)
-        lines.append(HTML(f"\n<hint>  {sel_count} checkpoint dipilih</hint>\n"))
+        lines.append(HTML(f"\n<hint>  {sel_count} checkpoint(s) selected</hint>\n"))
         return lines
 
     kb = KeyBindings()
@@ -243,17 +242,17 @@ def checkbox_select(rows: list[dict]) -> list[int]:
     return sorted(rows[i]["step"] for i in selected)
 
 
-# ── Menu utama ────────────────────────────────────────────────────────────────
+# ── Main menu ────────────────────────────────────────────────────────────────
 
 def interactive_menu(ckpt_dir: Path) -> tuple[str, list[int]]:
     """
-    Tampilkan menu interaktif.
-    Kembalikan (mode, steps):
+    Display interactive menu.
+    Returns (mode, steps):
       mode: 'latest' | 'best' | 'choose' | 'list' | 'quit'
-      steps: list step untuk mode 'choose', kosong untuk mode lain
+      steps: list of steps for 'choose' mode, empty for other modes
     """
     print("\n" + "=" * 45)
-    print("  Upload Checkpoint ke HuggingFace Hub")
+    print("  Upload Checkpoint to HuggingFace Hub")
     print("=" * 45)
     print(f"  Checkpoint dir: {ckpt_dir}")
     print()
@@ -267,22 +266,22 @@ def interactive_menu(ckpt_dir: Path) -> tuple[str, list[int]]:
             except Exception:
                 pass
         if steps_avail:
-            print(f"  Checkpoint tersedia: {len(steps_avail)} ({min(steps_avail):,} – {max(steps_avail):,})")
+            print(f"  Available checkpoints: {len(steps_avail)} ({min(steps_avail):,} – {max(steps_avail):,})")
     print()
 
-    print("  Pilih mode upload:")
-    print("  [1] Save Latest      — upload checkpoint step terbaru")
-    print("  [2] Best Checkpoint  — upload checkpoint val_bpb terbaik")
-    print("  [3] Choose Checkpoints — pilih manual (multi-select)")
-    print("  [4] Lihat semua checkpoint")
-    print("  [q] Keluar")
+    print("  Select upload mode:")
+    print("  [1] Save Latest      — upload the latest checkpoint (highest step)")
+    print("  [2] Best Checkpoint  — upload the checkpoint with the best val_bpb")
+    print("  [3] Choose Checkpoints — manual selection (multi-select)")
+    print("  [4] View all checkpoints")
+    print("  [q] Exit")
     print()
 
     while True:
         try:
-            choice = input("  Pilihan (1/2/3/4/q): ").strip().lower()
+            choice = input("  Choice (1/2/3/4/q): ").strip().lower()
         except (KeyboardInterrupt, EOFError):
-            print("\nDibatalkan.")
+            print("\nCancelled.")
             return "quit", []
 
         if choice in ("1", "latest"):
@@ -296,13 +295,13 @@ def interactive_menu(ckpt_dir: Path) -> tuple[str, list[int]]:
         elif choice in ("q", "quit", "exit"):
             return "quit", []
         else:
-            print("  Input tidak valid. Masukkan 1, 2, 3, 4, atau q.")
+            print("  Invalid input. Enter 1, 2, 3, 4, or q.")
 
 
 # ── Upload satu step ──────────────────────────────────────────────────────────
 
 def upload_step(api, step: int, ckpt_dir: Path, repo: str, depth: str, model_only: bool):
-    """Upload semua file untuk satu step. Return (uploaded, total)."""
+    """Upload all files for one step. Returns (uploaded, total)."""
     step_str = f"{step:06d}"
     files = [f"model_{step_str}.pt", f"meta_{step_str}.json"]
     if not model_only:
@@ -312,10 +311,10 @@ def upload_step(api, step: int, ckpt_dir: Path, repo: str, depth: str, model_onl
     for filename in files:
         filepath = ckpt_dir / filename
         if not filepath.exists():
-            print(f"  SKIP: {filename} tidak ditemukan")
+            print(f"  SKIP: {filename} not found")
             continue
         size_mb = filepath.stat().st_size / (1024 * 1024)
-        print(f"  Uploading {filename} ({size_mb:.1f} MB)...")
+        print(f"  Uploading {lanjut filename} ({size_mb:.1f} MB)...")
         api.upload_file(
             path_or_fileobj=str(filepath),
             path_in_repo=f"{depth}/{filename}",
@@ -331,15 +330,15 @@ def upload_step(api, step: int, ckpt_dir: Path, repo: str, depth: str, model_onl
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Upload checkpoint ke HuggingFace Hub")
+    parser = argparse.ArgumentParser(description="Upload checkpoint to HuggingFace Hub")
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--step", type=int, help="Step checkpoint yang mau diupload (contoh: 8000)")
-    group.add_argument("--best", action="store_true", help="Otomatis upload checkpoint dengan val_bpb terbaik")
-    group.add_argument("--latest", action="store_true", help="Upload checkpoint step terbaru")
-    group.add_argument("--list", action="store_true", help="Tampilkan semua checkpoint dan val_bpb-nya")
+    group.add_argument("--step", type=int, help="Checkpoint step to upload (e.g. 8000)")
+    group.add_argument("--best", action="store_true", help="Automatically upload the checkpoint with the best val_bpb")
+    group.add_argument("--latest", action="store_true", help="Upload the latest checkpoint (highest step)")
+    group.add_argument("--list", action="store_true", help="List all checkpoints and their val_bpb")
     parser.add_argument("--depth", type=str, default="d24", help="Model depth tag (default: d24)")
     parser.add_argument("--repo", type=str, default="Dummy9898/mesosfer-checkpoints", help="HF repo ID")
-    parser.add_argument("--model-only", action="store_true", help="Upload model + meta saja (skip optimizer state)")
+    parser.add_argument("--model-only", action="store_true", help="Upload model + meta only (skip optimizer state)")
     parser.add_argument("--base-dir", type=str, default=None, help="Override base cache dir")
     args = parser.parse_args()
 
@@ -347,10 +346,10 @@ def main():
     ckpt_dir = Path(base_dir) / "base_checkpoints" / args.depth
 
     if not ckpt_dir.exists():
-        print(f"ERROR: Checkpoint dir tidak ditemukan: {ckpt_dir}")
+        print(f"ERROR: Checkpoint directory not found: {ckpt_dir}")
         return
 
-    # ── Mode interaktif jika tidak ada flag ──────────────────────────────────
+    # ── Interactive mode if no flags given ───────────────────────────────────
     chosen_steps: list[int] = []
     no_flag_given = not (args.step or args.best or args.latest or args.list)
 
@@ -369,14 +368,14 @@ def main():
         elif mode == "choose":
             rows = load_all_checkpoints(ckpt_dir)
             if not rows:
-                print("Tidak ada checkpoint ditemukan.")
+                print("No checkpoints found.")
                 return
-            print("\n  Gunakan SPACE untuk memilih, ENTER untuk konfirmasi:\n")
+            print("\n  Use SPACE to select, ENTER to confirm:\n")
             chosen_steps = checkbox_select(rows)
             if not chosen_steps:
-                print("\nTidak ada checkpoint dipilih. Dibatalkan.")
+                print("\nNo checkpoints selected. Cancelled.")
                 return
-            print(f"\n  Dipilih: {len(chosen_steps)} checkpoint — {chosen_steps}")
+            print(f"\n  Selected: {len(chosen_steps)} checkpoint(s) — {chosen_steps}")
 
     # Mode --list
     if args.list:
@@ -384,11 +383,11 @@ def main():
         list_checkpoints(ckpt_dir)
         return
 
-    # Tentukan daftar step yang akan diupload
+    # Determine the list of steps to upload
     steps_to_upload: list[int] = []
 
     if chosen_steps:
-        # Mode choose: sudah ditentukan dari checkbox
+        # Choose mode: already determined from checkbox selection
         steps_to_upload = chosen_steps
         for s in steps_to_upload:
             meta_path = ckpt_dir / f"meta_{s:06d}.json"
@@ -403,12 +402,12 @@ def main():
             print(f"  • step {s:,}  (val_bpb={bpb_str})")
     elif args.best:
         step, best_bpb = find_best_checkpoint(ckpt_dir)
-        print(f"\nCheckpoint terbaik: step {step} (val_bpb={best_bpb:.6f})")
+        print(f"\nBest checkpoint: step {step} (val_bpb={best_bpb:.6f})")
         steps_to_upload = [step]
     elif args.latest:
         step, val_bpb = find_latest_checkpoint(ckpt_dir)
         bpb_info = f"val_bpb={val_bpb:.6f}" if isinstance(val_bpb, float) else "val_bpb=N/A"
-        print(f"\nCheckpoint terbaru: step {step} ({bpb_info})")
+        print(f"\nLatest checkpoint: step {step} ({bpb_info})")
         steps_to_upload = [step]
     elif args.step:
         step = args.step
@@ -416,9 +415,9 @@ def main():
         if meta_path.exists():
             with open(meta_path, encoding="utf-8") as f:
                 val_bpb = json.load(f).get("val_bpb", "N/A")
-            print(f"Upload step {step} (val_bpb={val_bpb})")
+            print(f"Uploading step {step} (val_bpb={val_bpb})")
         else:
-            print(f"Upload step {step} (meta tidak ditemukan)")
+            print(f"Uploading step {step} (meta not found)")
         steps_to_upload = [step]
     else:
         parser.print_help()
@@ -428,23 +427,23 @@ def main():
     try:
         from huggingface_hub import HfApi
     except ImportError:
-        print("ERROR: huggingface_hub tidak terinstall. Jalankan: pip install huggingface_hub")
+        print("ERROR: huggingface_hub is not installed. Run: pip install huggingface_hub")
         return
 
     api = HfApi()
     try:
         user = api.whoami()
-        print(f"\nLogin sebagai: {user['name']}")
+        print(f"\nLogged in as: {user['name']}")
     except Exception as e:
-        print(f"ERROR: Tidak bisa login ke HuggingFace — {e}")
-        print("Jalankan: hf auth login")
+        print(f"ERROR: Could not log in to HuggingFace — {e}")
+        print("Run: hf auth login")
         return
 
-    # Pastikan repo ada
+    # Ensure repo exists
     api.create_repo(repo_id=args.repo, repo_type="model", private=True, exist_ok=True)
     print(f"Repo: {args.repo}\n")
 
-    # ── Upload semua step yang dipilih ────────────────────────────────────────
+    # ── Upload all selected steps ─────────────────────────────────────────────
     grand_uploaded = 0
     grand_total = 0
 
@@ -457,7 +456,7 @@ def main():
         if len(steps_to_upload) > 1:
             print()
 
-    print(f"Selesai! {grand_uploaded}/{grand_total} file diupload ke {args.repo}/{args.depth}/")
+    print(f"Done! {grand_uploaded}/{grand_total} file(s) uploaded to {args.repo}/{args.depth}/")
 
 
 if __name__ == "__main__":
