@@ -314,7 +314,7 @@ def upload_step(api, step: int, ckpt_dir: Path, repo: str, depth: str, model_onl
             print(f"  SKIP: {filename} not found")
             continue
         size_mb = filepath.stat().st_size / (1024 * 1024)
-        print(f"  Uploading {lanjut filename} ({size_mb:.1f} MB)...")
+        print(f"  Uploading {filename} ({size_mb:.1f} MB)...")
         api.upload_file(
             path_or_fileobj=str(filepath),
             path_in_repo=f"{depth}/{filename}",
