@@ -328,6 +328,59 @@ ruff check .
 
 ---
 
+## Scaling to Larger Models
+
+The architecture is designed to scale without fundamental changes. Model size is controlled by two arguments:
+
+```
+model_dim = depth × aspect_ratio  (rounded up to nearest multiple of head_dim)
+num_heads = model_dim / head_dim
+```
+
+### Depth × Aspect Ratio → Parameter Count
+
+| Depth | Aspect Ratio | Model Dim | ~Total Params | Dataset needed (ratio=10) | Covered by ~8.5B dataset? |
+|-------|-------------|-----------|---------------|---------------------------|---------------------------|
+| 16 | 64 | 1024 | ~0.9B | ~2.7B | ✅ |
+| 18 | 64 | 1152 | ~1.2B | ~3.6B | ✅ |
+| 20 | 64 | 1280 | ~1.5B | ~4.8B | ✅ |
+| 22 | 64 | 1408 | ~1.8B | ~6.2B | ✅ |
+| 24 | 64 | 1536 | ~2.2B | ~7.8B | ✅ |
+| 28 | 64 | 1792 | ~3.1B | ~12.0B | ❌ need more data |
+| 32 | 128 | 4096 | ~11.5B | ~67B | ❌ need more data |
+| 36 | 128 | 4608 | ~15.5B | ~95B | ❌ need more data |
+| 40 | 128 | 5120 | ~20.3B | ~129B | ❌ need more data |
+| 44 | 128 | 5632 | ~26.0B | ~171B | ❌ need more data |
+| 48 | 128 | 6144 | ~32.6B | ~222B | ❌ need more data |
+
+> "Dataset needed" = scaling params × ratio=10. Scaling params = transformer matrices + lm_head (excludes embeddings).
+> Current dataset (~8.5B tokens) fully covers depth 16–24. For depth 28+, additional data sources are required.
+> For Chinchilla-optimal training (ratio=20), double the token requirements above.
+
+To train a larger model, simply pass the desired depth and aspect ratio:
+
+```bash
+# ~3B model (depth 28, aspect-ratio 64)
+python -m scripts.train.base_train \
+    --depth=28 \
+    --aspect-ratio=64 \
+    --head-dim=128 \
+    --target-param-data-ratio=10 \
+    --run=d28_run
+
+# ~7B model (depth 40, aspect-ratio 64)
+python -m scripts.train.base_train \
+    --depth=40 \
+    --aspect-ratio=64 \
+    --head-dim=128 \
+    --target-param-data-ratio=10 \
+    --run=d40_run
+```
+
+Features like GQA, Flash Attention 2/3, RoPE, RMSNorm, and BF16/FP8 are already implemented and designed for large-scale training. The main practical constraints for 7B+ models are **data volume** (current dataset ~8.5B tokens covers up to ~850M scaling params at ratio=10) and **hardware** (7B in BF16 requires ~14GB weights + optimizer state, recommend 2–4× A100/H100 80GB or 1× MI300X).
+
+---
+
 ## Acknowledgments
 
 - [Andrej Karpathy](https://karpathy.ai/) — nanoGPT inspiration
