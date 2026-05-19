@@ -28,7 +28,7 @@ from mesosfer.model.flash_attention import flash_attn
 @dataclass
 class GPTConfig:
     sequence_len: int = 2048
-    vocab_size: int = 32768
+    vocab_size: int = 65536
     n_layer: int = 28              # Depth 28 for balanced reasoning (~380M params)
     n_head: int = 12               # 12 heads for diverse attention patterns
     n_kv_head: int = 12            # Full attention (GQA-compatible, head_dim=64)

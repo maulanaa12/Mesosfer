@@ -7,7 +7,7 @@ Mesosfer is inspired by [nanoGPT](https://github.com/karpathy/nanoGPT) and follo
 ## Features
 
 - **Pretraining** — Train base models from scratch using scaling laws
-- **Tokenizer Training** — Custom BPE tokenizer (32K vocab, cybersec-aware)
+- **Tokenizer Training** — Custom BPE tokenizer (64K vocab, cybersec-aware)
 - **Supervised Fine-Tuning (SFT)** — Instruction tuning with cybersecurity datasets
 - **Reinforcement Learning (RL)** — GRPO-style RL on cybersecurity tasks
 - **Evaluation** — CORE benchmark + cybersecurity domain probes
@@ -112,7 +112,7 @@ python -m scripts.data.convert_logs_to_nl --dry-run
 
 ### 3. Train Tokenizer
 
-Train a 32K BPE tokenizer on the prepared data. Requires Step 2a to be complete.
+Train a 64K BPE tokenizer on the prepared data. Requires Step 2a to be complete.
 
 ```bash
 python -m scripts.train.tok_train

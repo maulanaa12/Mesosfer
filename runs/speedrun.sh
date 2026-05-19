@@ -66,7 +66,7 @@ python -m mesosfer.data.dataset -n 8
 # The maximum total number of shards available in the entire dataset is 6542.
 python -m mesosfer.data.dataset -n 170 &
 DATASET_DOWNLOAD_PID=$!
-# train the tokenizer with vocab size 2**15 = 32768 on ~2B characters of data
+# train the tokenizer with vocab size 2**16 = 65536 on ~2B characters of data
 python -m scripts.tok_train
 # evaluate the tokenizer (report compression ratio etc.)
 python -m scripts.tok_eval

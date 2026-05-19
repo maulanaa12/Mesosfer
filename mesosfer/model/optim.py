@@ -20,10 +20,10 @@ https://arxiv.org/abs/1711.05101
 
 @torch.compile(dynamic=False, fullgraph=True)
 def adamw_step_fused(
-    p: Tensor,              # (32768, 768) - parameter tensor
-    grad: Tensor,           # (32768, 768) - gradient, same shape as p
-    exp_avg: Tensor,        # (32768, 768) - first moment, same shape as p
-    exp_avg_sq: Tensor,     # (32768, 768) - second moment, same shape as p
+    p: Tensor,              # (65536, 768) - parameter tensor
+    grad: Tensor,           # (65536, 768) - gradient, same shape as p
+    exp_avg: Tensor,        # (65536, 768) - first moment, same shape as p
+    exp_avg_sq: Tensor,     # (65536, 768) - second moment, same shape as p
     step_t: Tensor,         # () - 0-D CPU tensor, step count
     lr_t: Tensor,           # () - 0-D CPU tensor, learning rate
     beta1_t: Tensor,        # () - 0-D CPU tensor, beta1

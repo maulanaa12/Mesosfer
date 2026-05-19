@@ -2,11 +2,17 @@
 """
 Upload checkpoint ke HuggingFace Hub (private repo).
 
-Bisa upload step tertentu, atau otomatis cari checkpoint terbaik
-berdasarkan val_bpb terendah dari file meta_*.json.
+Jalankan tanpa argumen untuk mode interaktif (menu pilihan).
+Atau gunakan flag langsung untuk non-interaktif / scripting.
 
 Usage:
-    # Upload checkpoint terbaik (val_bpb terendah) secara otomatis
+    # Mode interaktif (direkomendasikan)
+    python scripts/upload_checkpoint_to_hf.py
+
+    # Upload checkpoint terbaru (step tertinggi)
+    python scripts/upload_checkpoint_to_hf.py --latest
+
+    # Upload checkpoint terbaik (val_bpb terendah)
     python scripts/upload_checkpoint_to_hf.py --best
 
     # Upload step tertentu
@@ -85,11 +91,81 @@ def list_checkpoints(ckpt_dir: Path):
     print()
 
 
+def find_latest_checkpoint(ckpt_dir: Path) -> tuple[int, float | None]:
+    """Cari checkpoint dengan step tertinggi (paling baru)."""
+    meta_files = sorted(ckpt_dir.glob("meta_*.json"))
+    if not meta_files:
+        raise FileNotFoundError(f"Tidak ada file meta_*.json di {ckpt_dir}")
+
+    latest_meta = meta_files[-1]
+    step = int(latest_meta.stem.split("_")[1])  # meta_008000.json -> 8000
+
+    try:
+        with open(latest_meta, encoding="utf-8") as f:
+            meta = json.load(f)
+        val_bpb = meta.get("val_bpb")
+    except Exception:
+        val_bpb = None
+
+    return step, val_bpb
+
+
+def interactive_menu(ckpt_dir: Path) -> tuple[str, int | None]:
+    """
+    Tampilkan menu interaktif dan kembalikan (mode, step).
+    mode: 'latest' | 'best' | 'list' | 'quit'
+    """
+    print("\n" + "=" * 45)
+    print("  Upload Checkpoint ke HuggingFace Hub")
+    print("=" * 45)
+    print(f"  Checkpoint dir: {ckpt_dir}")
+    print()
+
+    # Hitung ringkasan checkpoint yang tersedia
+    meta_files = sorted(ckpt_dir.glob("meta_*.json"))
+    if meta_files:
+        steps = []
+        for m in meta_files:
+            try:
+                steps.append(int(m.stem.split("_")[1]))
+            except Exception:
+                pass
+        if steps:
+            print(f"  Checkpoint tersedia: {len(steps)} ({min(steps):,} – {max(steps):,})")
+    print()
+
+    print("  Pilih mode upload:")
+    print("  [1] Save Latest   — upload checkpoint step terbaru")
+    print("  [2] Best Checkpoint — upload checkpoint val_bpb terbaik")
+    print("  [3] Lihat semua checkpoint")
+    print("  [q] Keluar")
+    print()
+
+    while True:
+        try:
+            choice = input("  Pilihan (1/2/3/q): ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print("\nDibatalkan.")
+            return "quit", None
+
+        if choice in ("1", "latest"):
+            return "latest", None
+        elif choice in ("2", "best"):
+            return "best", None
+        elif choice in ("3", "list"):
+            return "list", None
+        elif choice in ("q", "quit", "exit"):
+            return "quit", None
+        else:
+            print("  Input tidak valid. Masukkan 1, 2, 3, atau q.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Upload checkpoint ke HuggingFace Hub")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--step", type=int, help="Step checkpoint yang mau diupload (contoh: 8000)")
     group.add_argument("--best", action="store_true", help="Otomatis upload checkpoint dengan val_bpb terbaik")
+    group.add_argument("--latest", action="store_true", help="Upload checkpoint step terbaru")
     group.add_argument("--list", action="store_true", help="Tampilkan semua checkpoint dan val_bpb-nya")
     parser.add_argument("--depth", type=str, default="d24", help="Model depth tag (default: d24)")
     parser.add_argument("--repo", type=str, default="Dummy9898/mesosfer-checkpoints", help="HF repo ID")
@@ -104,6 +180,21 @@ def main():
         print(f"ERROR: Checkpoint dir tidak ditemukan: {ckpt_dir}")
         return
 
+    # ── Deteksi mode: interaktif jika tidak ada flag yang diberikan ──────────
+    no_flag_given = not (args.step or args.best or args.latest or args.list)
+    if no_flag_given:
+        mode, _ = interactive_menu(ckpt_dir)
+        if mode == "quit":
+            return
+        elif mode == "list":
+            print(f"\nCheckpoint dir: {ckpt_dir}")
+            list_checkpoints(ckpt_dir)
+            return
+        elif mode == "latest":
+            args.latest = True
+        elif mode == "best":
+            args.best = True
+
     # Mode --list: tampilkan semua checkpoint
     if args.list:
         print(f"Checkpoint dir: {ckpt_dir}")
@@ -113,7 +204,11 @@ def main():
     # Tentukan step yang akan diupload
     if args.best:
         step, best_bpb = find_best_checkpoint(ckpt_dir)
-        print(f"Checkpoint terbaik: step {step} (val_bpb={best_bpb:.6f})")
+        print(f"\nCheckpoint terbaik: step {step} (val_bpb={best_bpb:.6f})")
+    elif args.latest:
+        step, val_bpb = find_latest_checkpoint(ckpt_dir)
+        bpb_info = f"val_bpb={val_bpb:.6f}" if isinstance(val_bpb, float) else "val_bpb=N/A"
+        print(f"\nCheckpoint terbaru: step {step} ({bpb_info})")
     elif args.step:
         step = args.step
         # Baca val_bpb dari meta untuk info
