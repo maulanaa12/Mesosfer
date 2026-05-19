@@ -420,9 +420,9 @@ while True:
         model.eval()
         val_loader = build_val_loader()
         eval_steps = args.eval_tokens // (args.device_batch_size * args.max_seq_len * ddp_world_size)
-        val_bpb = evaluate_bpb(model, val_loader, eval_steps, token_bytes)
+        val_bpb, val_loss = evaluate_bpb(model, val_loader, eval_steps, token_bytes)
         if master_process:
-            tqdm.write(f"Step {step:05d} | Validation bpb: {val_bpb:.4f}")
+            tqdm.write(f"Step {step:05d} | Validation bpb: {val_bpb:.4f} | Val loss: {val_loss:.4f}")
         if val_bpb < min_val_bpb:
             min_val_bpb = val_bpb
         wandb_run.log({

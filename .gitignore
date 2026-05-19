@@ -15,3 +15,4 @@ wandb/
 .pytest_cache/
 superpowers/
 superpowers/specs/
+.kiro/

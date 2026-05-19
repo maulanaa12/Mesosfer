@@ -27,6 +27,7 @@ def evaluate_bpb(model, batches, steps, token_bytes):
     # record the losses
     total_nats = torch.tensor(0.0, dtype=torch.float32, device=model.get_device())
     total_bytes = torch.tensor(0, dtype=torch.int64, device=model.get_device())
+    total_tokens_counted = torch.tensor(0, dtype=torch.int64, device=model.get_device())
     batch_iter = iter(batches)
     for _ in range(steps):
         x, y = next(batch_iter)
@@ -44,22 +45,29 @@ def evaluate_bpb(model, batches, steps, token_bytes):
                 token_bytes[y_safe],
                 torch.zeros_like(y, dtype=token_bytes.dtype)
             )
-            total_nats += (loss2d * (num_bytes2d > 0)).sum()
+            mask = (num_bytes2d > 0)
+            total_nats += (loss2d * mask).sum()
             total_bytes += num_bytes2d.sum()
+            total_tokens_counted += mask.sum()
         else:
             # fast path: no ignored targets, safe to index directly
             num_bytes2d = token_bytes[y]
-            total_nats += (loss2d * (num_bytes2d > 0)).sum()
+            mask = (num_bytes2d > 0)
+            total_nats += (loss2d * mask).sum()
             total_bytes += num_bytes2d.sum()
+            total_tokens_counted += mask.sum()
     # sum reduce across all ranks
     world_size = dist.get_world_size() if dist.is_initialized() else 1
     if world_size > 1:
         dist.all_reduce(total_nats, op=dist.ReduceOp.SUM)
         dist.all_reduce(total_bytes, op=dist.ReduceOp.SUM)
+        dist.all_reduce(total_tokens_counted, op=dist.ReduceOp.SUM)
     # move both to cpu, calculate bpb and return
     total_nats = total_nats.item()
     total_bytes = total_bytes.item()
+    total_tokens_counted = total_tokens_counted.item()
     if total_bytes == 0:
-        return float('inf')
+        return float('inf'), float('inf')
     bpb = total_nats / (math.log(2) * total_bytes)
-    return bpb
+    avg_loss = total_nats / total_tokens_counted if total_tokens_counted > 0 else float('inf')
+    return bpb, avg_loss
