@@ -47,20 +47,12 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-
-# ── ANSI color helpers (per RULES §9 – Scannability) ─────────────────────────
-
-_USE_COLOR = sys.stdout.isatty()
-
-
-def _c(code: str, text: str) -> str:
-    return f"\033[{code}m{text}\033[0m" if _USE_COLOR else text
-
-
-def info(msg: str) -> None:    print(_c("36", msg))   # cyan
-def success(msg: str) -> None: print(_c("32", msg))   # green
-def warn(msg: str) -> None:    print(_c("33", msg))   # yellow
-def err(msg: str) -> None:     print(_c("31", msg))   # red
+# ── UI helpers (shared with upload script) ────────────────────────────────────
+sys.path.insert(0, str(Path(__file__).parent))
+from _ui import (  # noqa: E402
+    box, menu, confirm, section, badge, spinner,
+    info, success, warn, err, dim,
+)
 
 
 # ── .env loader (no external deps) ───────────────────────────────────────────
@@ -341,31 +333,28 @@ def download_model(args, base_dir: Path) -> None:
 
 def _checkpoint_submenu(rows: list[dict]) -> list[int]:
     """Interactive sub-menu: latest / best / pick / cancel."""
-    print()
-    info("  Checkpoint selection:")
-    print("    [1] Latest        (highest step)")
-    print("    [2] Best          (lowest val_bpb)")
-    print("    [3] Choose        (multi-select)")
-    print("    [q] Cancel")
-    print()
-    while True:
-        try:
-            choice = input("  Choice (1/2/3/q): ").strip().lower()
-        except (KeyboardInterrupt, EOFError):
+    idx = menu(
+        "Select checkpoint",
+        ["Latest", "Best val_bpb", "Choose (multi-select)", "Cancel"],
+        [
+            "highest step number",
+            "lowest val_bpb score",
+            "manually pick one or more steps",
+            "",
+        ],
+    )
+    if idx == -1 or idx == 3:
+        return []
+    if idx == 0:
+        return [rows[-1]["step"]]
+    if idx == 1:
+        valid = [r for r in rows if isinstance(r["val_bpb"], float)]
+        if not valid:
+            err("  No checkpoints with a val_bpb value found.")
             return []
-        if choice in ("1", "latest"):
-            return [rows[-1]["step"]]
-        if choice in ("2", "best"):
-            valid = [r for r in rows if isinstance(r["val_bpb"], float)]
-            if not valid:
-                err("  No checkpoints with a val_bpb value found.")
-                return []
-            return [min(valid, key=lambda r: r["val_bpb"])["step"]]
-        if choice in ("3", "choose"):
-            return _checkbox_select(rows)
-        if choice in ("q", "quit", "exit"):
-            return []
-        warn("  Invalid input. Enter 1, 2, 3, or q.")
+        return [min(valid, key=lambda r: r["val_bpb"])["step"]]
+    # idx == 2: choose
+    return _checkbox_select(rows)
 
 
 def _checkbox_select(rows: list[dict]) -> list[int]:
@@ -542,13 +531,13 @@ def download_dataset(args, base_dir: Path) -> None:
 
     # List all files in repo once (cheap, avoids per-file HEAD requests)
     info(f"\nRepo: {repo}")
-    info("Fetching file list from repo…")
-    try:
-        all_repo_files: list[str] = list(api.list_repo_files(repo_id=repo, repo_type="model"))
-    except Exception as e:
-        err(f"ERROR: cannot list files in {repo}: {e}")
-        err("  Make sure you are logged in: hf auth login")
-        return
+    with spinner("Fetching file list from repo…"):
+        try:
+            all_repo_files: list[str] = list(api.list_repo_files(repo_id=repo, repo_type="model"))
+        except Exception as e:
+            err(f"ERROR: cannot list files in {repo}: {e}")
+            err("  Make sure you are logged in: hf auth login")
+            return
 
     grand_dl = grand_skip = grand_missing = 0
 
@@ -615,49 +604,50 @@ def download_dataset(args, base_dir: Path) -> None:
 # ── Top-level interactive menu ───────────────────────────────────────────────
 
 def main_menu(base_dir: Path) -> str:
-    print()
-    print("=" * 50)
-    info("  Download Mesosfer Artifacts from HuggingFace")
-    print("=" * 50)
-    info(f"  Cache dir: {base_dir}")
-    print()
-    print("  What do you want to download?")
-    print("    [1] Model + optimizer + meta.json")
-    print("    [2] Tokenizer")
-    print("    [3] Dataset (parquet)")
-    print("    [4] Exit")
-    print()
-    while True:
-        try:
-            choice = input("  Choice (1/2/3/4): ").strip().lower()
-        except (KeyboardInterrupt, EOFError):
-            return "exit"
-        if choice in ("1", "model"):     return "model"
-        if choice in ("2", "tokenizer"): return "tokenizer"
-        if choice in ("3", "dataset"):   return "dataset"
-        if choice in ("4", "q", "quit", "exit"): return "exit"
-        warn("  Invalid input. Enter 1, 2, 3, or 4.")
+    """Show top-level download menu. Returns artifact key or 'exit'."""
+    idx = menu(
+        "Download Mesosfer Artifacts from HuggingFace",
+        [
+            "Model checkpoint",
+            "Tokenizer",
+            "Dataset (parquet shards)",
+            "Exit",
+        ],
+        [
+            "model weights + optimizer + meta.json",
+            "tokenizer.pkl + token_bytes.pt",
+            "base_data_cybersecurity + base_data_climbmix",
+            "",
+        ],
+        subtitle=f"Cache dir: {base_dir}",
+    )
+    return ["model", "tokenizer", "dataset", "exit"][idx] if idx != -1 else "exit"
 
 
 def prompt_model_options(args: argparse.Namespace) -> None:
-    """Ask follow-up questions when --artifact model is chosen interactively."""
-    print()
-    info("  Checkpoint source:")
-    print("    [1] base   (pretraining)")
-    print("    [2] sft    (chat SFT)")
-    print("    [3] rl     (RL/GRPO)")
-    while True:
-        choice = input("  Source (1/2/3) [1]: ").strip() or "1"
-        if choice in ("1", "base"): args.source = "base"; break
-        if choice in ("2", "sft"):  args.source = "sft";  break
-        if choice in ("3", "rl"):   args.source = "rl";   break
-        warn("  Invalid input.")
-    depth = input(f"  Depth tag [{args.depth}]: ").strip()
-    if depth:
-        args.depth = depth
-    mo = input("  Skip optimizer state (model + meta only)? [y/N]: ").strip().lower()
-    if mo in ("y", "yes"):
-        args.model_only = True
+    """Ask source and depth interactively when user picks 'model' from top menu."""
+    section("Checkpoint source")
+    idx = menu(
+        "Select source",
+        ["base  — pretraining", "sft   — chat SFT", "rl    — RL/GRPO"],
+        [
+            "~/.cache/mesosfer/base_checkpoints/",
+            "~/.cache/mesosfer/chatsft_checkpoints/",
+            "~/.cache/mesosfer/chatrl_checkpoints/",
+        ],
+    )
+    if idx == -1:
+        return
+    args.source = ["base", "sft", "rl"][idx]
+
+    try:
+        depth_input = input(f"  Depth tag [{args.depth}]: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        depth_input = ""
+    if depth_input:
+        args.depth = depth_input
+
+    args.model_only = confirm("Skip optimizer state? (model + meta only)", default=False)
 
 
 def prompt_dataset_options(args: argparse.Namespace) -> None:
@@ -741,13 +731,11 @@ def main(argv: Iterable[str] | None = None) -> int:
         # Interactive entry point
         choice = main_menu(base_dir)
         if choice == "exit":
-            info("\nGoodbye.")
+            dim("\nGoodbye.")
             return 0
         args.artifact = choice
         if choice == "model":
             prompt_model_options(args)
-        elif choice == "dataset":
-            prompt_dataset_options(args)
 
     try:
         if args.artifact == "model":

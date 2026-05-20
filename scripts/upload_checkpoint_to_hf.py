@@ -53,19 +53,13 @@ import json
 import argparse
 from pathlib import Path
 
-# ── ANSI color helpers (per RULES §9 – Scannability) ─────────────────────────
-
-_USE_COLOR = sys.stdout.isatty()
-
-
-def _c(code: str, text: str) -> str:
-    return f"\033[{code}m{text}\033[0m" if _USE_COLOR else text
-
-
-def info(msg: str) -> None:    print(_c("36", msg))   # cyan
-def success(msg: str) -> None: print(_c("32", msg))   # green
-def warn(msg: str) -> None:    print(_c("33", msg))   # yellow
-def err(msg: str) -> None:     print(_c("31", msg))   # red
+# ── UI helpers (shared with download script) ──────────────────────────────────
+sys.path.insert(0, str(Path(__file__).parent))
+from _ui import (  # noqa: E402
+    box, menu, confirm, section, badge, spinner,
+    info, success, warn, err, dim,
+    BOLD, CYAN, BRIGHT_BLACK, BRIGHT_GREEN, RESET,
+)
 
 
 # ── .env loader (no external deps) ───────────────────────────────────────────
@@ -329,60 +323,40 @@ def checkbox_select(rows: list[dict]) -> list[int]:
     return sorted(rows[i]["step"] for i in selected)
 
 
-# ── Main menu ────────────────────────────────────────────────────────────────
+# ── Checkpoint sub-menu ───────────────────────────────────────────────────────
 
 def interactive_menu(ckpt_dir: Path) -> tuple[str, list[int]]:
     """
-    Display interactive menu.
+    Checkpoint upload mode selection.
     Returns (mode, steps):
       mode: 'latest' | 'best' | 'choose' | 'list' | 'quit'
-      steps: list of steps for 'choose' mode, empty for other modes
     """
-    print("\n" + "=" * 45)
-    print("  Upload Checkpoint to HuggingFace Hub")
-    print("=" * 45)
-    print(f"  Checkpoint dir: {ckpt_dir}")
-    print()
-
     meta_files = sorted(ckpt_dir.glob("meta_*.json"))
+    steps_info = ""
     if meta_files:
-        steps_avail = []
+        steps = []
         for m in meta_files:
             try:
-                steps_avail.append(int(m.stem.split("_")[1]))
+                steps.append(int(m.stem.split("_")[1]))
             except Exception:
                 pass
-        if steps_avail:
-            print(f"  Available checkpoints: {len(steps_avail)} ({min(steps_avail):,} – {max(steps_avail):,})")
-    print()
+        if steps:
+            steps_info = f"{len(steps)} checkpoints  ({min(steps):,} – {max(steps):,})"
 
-    print("  Select upload mode:")
-    print("  [1] Save Latest      — upload the latest checkpoint (highest step)")
-    print("  [2] Best Checkpoint  — upload the checkpoint with the best val_bpb")
-    print("  [3] Choose Checkpoints — manual selection (multi-select)")
-    print("  [4] View all checkpoints")
-    print("  [q] Exit")
-    print()
-
-    while True:
-        try:
-            choice = input("  Choice (1/2/3/4/q): ").strip().lower()
-        except (KeyboardInterrupt, EOFError):
-            print("\nCancelled.")
-            return "quit", []
-
-        if choice in ("1", "latest"):
-            return "latest", []
-        elif choice in ("2", "best"):
-            return "best", []
-        elif choice in ("3", "choose"):
-            return "choose", []
-        elif choice in ("4", "list"):
-            return "list", []
-        elif choice in ("q", "quit", "exit"):
-            return "quit", []
-        else:
-            print("  Invalid input. Enter 1, 2, 3, 4, or q.")
+    idx = menu(
+        "Upload Checkpoint",
+        ["Latest", "Best val_bpb", "Choose (multi-select)", "List all", "Cancel"],
+        [
+            "highest step number",
+            "lowest val_bpb score",
+            "manually pick one or more steps",
+            "show table, no upload",
+            "",
+        ],
+        subtitle=f"{ckpt_dir}  {steps_info}",
+    )
+    modes = ["latest", "best", "choose", "list", "quit"]
+    return (modes[idx] if idx != -1 else "quit"), []
 
 
 # ── Upload satu step ──────────────────────────────────────────────────────────
@@ -492,12 +466,12 @@ def upload_dataset(api, base_dir: str, repo: str, dataset_names: list[str] | Non
     dirs_to_upload = dataset_names if dataset_names else DATASET_DIRS
 
     # Pre-flight: collect existing files in repo to enable idempotent skip
-    info("\nFetching existing files in repo (for idempotent skip)…")
-    try:
-        existing_in_repo: set[str] = set(api.list_repo_files(repo_id=repo, repo_type="model"))
-    except Exception as e:
-        warn(f"  Could not list repo files ({e}). Will attempt all uploads.")
-        existing_in_repo = set()
+    with spinner("Fetching existing files in repo…"):
+        try:
+            existing_in_repo: set[str] = set(api.list_repo_files(repo_id=repo, repo_type="model"))
+        except Exception as e:
+            warn(f"  Could not list repo files ({e}). Will attempt all uploads.")
+            existing_in_repo = set()
 
     grand_uploaded = grand_skipped = grand_missing = 0
 
@@ -554,25 +528,20 @@ def upload_dataset(api, base_dir: str, repo: str, dataset_names: list[str] | Non
 # ── Interactive model option prompts ─────────────────────────────────────────
 
 def _prompt_model_options(args: argparse.Namespace) -> None:
-    """
-    Ask source and depth interactively when the user picks 'model' from the
-    top-level menu (i.e. no CLI flags were given).
-    Mutates args in-place.
-    """
-    print()
-    info("  Checkpoint source:")
-    print("    [1] base   — pretraining  (~/.cache/mesosfer/base_checkpoints/)")
-    print("    [2] sft    — chat SFT     (~/.cache/mesosfer/chatsft_checkpoints/)")
-    print("    [3] rl     — RL/GRPO      (~/.cache/mesosfer/chatrl_checkpoints/)")
-    while True:
-        try:
-            choice = input(f"  Source (1/2/3) [{args.source}]: ").strip() or "1"
-        except (KeyboardInterrupt, EOFError):
-            return
-        if choice in ("1", "base"): args.source = "base"; break
-        if choice in ("2", "sft"):  args.source = "sft";  break
-        if choice in ("3", "rl"):   args.source = "rl";   break
-        warn("  Invalid input. Enter 1, 2, or 3.")
+    """Ask source and depth interactively when user picks 'model' from top menu."""
+    section("Checkpoint source")
+    idx = menu(
+        "Select source",
+        ["base  — pretraining", "sft   — chat SFT", "rl    — RL/GRPO"],
+        [
+            "~/.cache/mesosfer/base_checkpoints/",
+            "~/.cache/mesosfer/chatsft_checkpoints/",
+            "~/.cache/mesosfer/chatrl_checkpoints/",
+        ],
+    )
+    if idx == -1:
+        return
+    args.source = ["base", "sft", "rl"][idx]
 
     try:
         depth_input = input(f"  Depth tag [{args.depth}]: ").strip()
@@ -581,43 +550,30 @@ def _prompt_model_options(args: argparse.Namespace) -> None:
     if depth_input:
         args.depth = depth_input
 
-    try:
-        mo = input("  Skip optimizer state? (model + meta only) [y/N]: ").strip().lower()
-    except (KeyboardInterrupt, EOFError):
-        mo = ""
-    if mo in ("y", "yes"):
-        args.model_only = True
+    args.model_only = confirm("Skip optimizer state? (model + meta only)", default=False)
 
 
 # ── Top-level interactive menu ────────────────────────────────────────────────
 
 def top_level_menu(base_dir: str) -> str:
-    """
-    Show the top-level artifact selection menu.
-    Returns: 'model' | 'tokenizer' | 'dataset' | 'exit'
-    """
-    print()
-    print("=" * 50)
-    info("  Upload Mesosfer Artifacts to HuggingFace Hub")
-    print("=" * 50)
-    info(f"  Cache dir: {base_dir}")
-    print()
-    print("  What do you want to upload?")
-    print("    [1] Model + optimizer + meta.json  (checkpoint)")
-    print("    [2] Tokenizer                      (tokenizer.pkl + token_bytes.pt)")
-    print("    [3] Dataset                        (parquet shards)")
-    print("    [4] Exit")
-    print()
-    while True:
-        try:
-            choice = input("  Choice (1/2/3/4): ").strip().lower()
-        except (KeyboardInterrupt, EOFError):
-            return "exit"
-        if choice in ("1", "model"):     return "model"
-        if choice in ("2", "tokenizer"): return "tokenizer"
-        if choice in ("3", "dataset"):   return "dataset"
-        if choice in ("4", "q", "quit", "exit"): return "exit"
-        warn("  Invalid input. Enter 1, 2, 3, or 4.")
+    """Show the top-level artifact selection menu. Returns artifact key or 'exit'."""
+    idx = menu(
+        "Upload Mesosfer Artifacts to HuggingFace",
+        [
+            "Model checkpoint",
+            "Tokenizer",
+            "Dataset (parquet shards)",
+            "Exit",
+        ],
+        [
+            "model weights + optimizer + meta.json",
+            "tokenizer.pkl + token_bytes.pt",
+            "base_data_cybersecurity + base_data_climbmix",
+            "",
+        ],
+        subtitle=f"Cache dir: {base_dir}",
+    )
+    return ["model", "tokenizer", "dataset", "exit"][idx] if idx != -1 else "exit"
 
 
 # ── HF login helper ───────────────────────────────────────────────────────────
