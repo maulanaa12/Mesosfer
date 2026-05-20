@@ -9,8 +9,14 @@ Usage:
     # Interactive mode (recommended)
     python scripts/upload_checkpoint_to_hf.py
 
-    # Upload the latest checkpoint (highest step)
+    # Upload the latest base checkpoint
     python scripts/upload_checkpoint_to_hf.py --latest
+
+    # Upload the best SFT checkpoint
+    python scripts/upload_checkpoint_to_hf.py --best --source sft
+
+    # Upload the best RL checkpoint
+    python scripts/upload_checkpoint_to_hf.py --best --source rl
 
     # Upload the best checkpoint (lowest val_bpb)
     python scripts/upload_checkpoint_to_hf.py --best
@@ -22,7 +28,13 @@ Usage:
     python scripts/upload_checkpoint_to_hf.py --best --model-only
 
     # Custom repo
-    python scripts/upload_checkpoint_to_hf.py --best --repo Dummy9898/mesosfer-checkpoints"""
+    python scripts/upload_checkpoint_to_hf.py --best --repo Dummy9898/mesosfer-checkpoints
+
+Checkpoint sources:
+    base  → ~/.cache/mesosfer/base_checkpoints/<depth>/
+    sft   → ~/.cache/mesosfer/chatsft_checkpoints/<depth>/
+    rl    → ~/.cache/mesosfer/chatrl_checkpoints/<depth>/
+"""
 
 import os
 import sys
@@ -300,12 +312,20 @@ def interactive_menu(ckpt_dir: Path) -> tuple[str, list[int]]:
 
 # ── Upload satu step ──────────────────────────────────────────────────────────
 
-def upload_step(api, step: int, ckpt_dir: Path, repo: str, depth: str, model_only: bool):
-    """Upload all files for one step. Returns (uploaded, total)."""
+def upload_step(api, step: int, ckpt_dir: Path, repo: str, depth: str, source: str, model_only: bool):
+    """Upload all files for one step. Returns (uploaded, total).
+
+    Files are stored in the repo under:
+      <source>/<depth>/model_XXXXXX.pt   (e.g. sft/d24/model_001000.pt)
+    This keeps base, sft, and rl checkpoints cleanly separated.
+    """
     step_str = f"{step:06d}"
     files = [f"model_{step_str}.pt", f"meta_{step_str}.json"]
     if not model_only:
         files.append(f"optim_{step_str}_rank0.pt")
+
+    # Repo path prefix: e.g. "sft/d24/" or "base/d24/"
+    repo_prefix = f"{source}/{depth}"
 
     uploaded = 0
     for filename in files:
@@ -314,10 +334,10 @@ def upload_step(api, step: int, ckpt_dir: Path, repo: str, depth: str, model_onl
             print(f"  SKIP: {filename} not found")
             continue
         size_mb = filepath.stat().st_size / (1024 * 1024)
-        print(f"  Uploading {filename} ({size_mb:.1f} MB)...")
+        print(f"  Uploading {filename} ({size_mb:.1f} MB) → {repo_prefix}/{filename}")
         api.upload_file(
             path_or_fileobj=str(filepath),
-            path_in_repo=f"{depth}/{filename}",
+            path_in_repo=f"{repo_prefix}/{filename}",
             repo_id=repo,
             repo_type="model",
         )
@@ -337,16 +357,31 @@ def main():
     group.add_argument("--latest", action="store_true", help="Upload the latest checkpoint (highest step)")
     group.add_argument("--list", action="store_true", help="List all checkpoints and their val_bpb")
     parser.add_argument("--depth", type=str, default="d24", help="Model depth tag (default: d24)")
+    parser.add_argument("--source", type=str, default="base", choices=["base", "sft", "rl"],
+                        help="Checkpoint source: base (pretraining), sft (chat SFT), rl (RL/GRPO). Default: base")
     parser.add_argument("--repo", type=str, default="Dummy9898/mesosfer-checkpoints", help="HF repo ID")
     parser.add_argument("--model-only", action="store_true", help="Upload model + meta only (skip optimizer state)")
     parser.add_argument("--base-dir", type=str, default=None, help="Override base cache dir")
     args = parser.parse_args()
 
     base_dir = args.base_dir or os.path.expanduser("~/.cache/mesosfer")
-    ckpt_dir = Path(base_dir) / "base_checkpoints" / args.depth
+
+    # Map source to checkpoint subdirectory
+    source_dir_map = {
+        "base": "base_checkpoints",
+        "sft":  "chatsft_checkpoints",
+        "rl":   "chatrl_checkpoints",
+    }
+    ckpt_subdir = source_dir_map[args.source]
+    ckpt_dir = Path(base_dir) / ckpt_subdir / args.depth
 
     if not ckpt_dir.exists():
         print(f"ERROR: Checkpoint directory not found: {ckpt_dir}")
+        print(f"  source={args.source!r} maps to: {ckpt_subdir}/{args.depth}/")
+        if args.source == "sft":
+            print("  Make sure SFT training has completed and saved a checkpoint.")
+        elif args.source == "rl":
+            print("  Make sure RL training has completed and saved a checkpoint.")
         return
 
     # ── Interactive mode if no flags given ───────────────────────────────────
@@ -354,6 +389,7 @@ def main():
     no_flag_given = not (args.step or args.best or args.latest or args.list)
 
     if no_flag_given:
+        print(f"\n  Source: {args.source} ({ckpt_dir})")
         mode, _ = interactive_menu(ckpt_dir)
         if mode == "quit":
             return
@@ -450,13 +486,13 @@ def main():
     for i, step in enumerate(steps_to_upload, 1):
         if len(steps_to_upload) > 1:
             print(f"── [{i}/{len(steps_to_upload)}] step {step:,} ──")
-        uploaded, total = upload_step(api, step, ckpt_dir, args.repo, args.depth, args.model_only)
+        uploaded, total = upload_step(api, step, ckpt_dir, args.repo, args.depth, args.source, args.model_only)
         grand_uploaded += uploaded
         grand_total += total
         if len(steps_to_upload) > 1:
             print()
 
-    print(f"Done! {grand_uploaded}/{grand_total} file(s) uploaded to {args.repo}/{args.depth}/")
+    print(f"Done! {grand_uploaded}/{grand_total} file(s) uploaded to {args.repo}/{args.source}/{args.depth}/")
 
 
 if __name__ == "__main__":
