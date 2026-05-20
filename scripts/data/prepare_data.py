@@ -437,6 +437,7 @@ DOMAIN_SAMPLING_WEIGHTS = {
     "secure_code_shell":       1.4,
     "metasploit":              1.7,
     "exploitdb":               1.8,
+    "swallow_code_v2":         1.3,
     # Instruction / reasoning
     "openhermes":              0.9,
     "finemath":                0.9,
@@ -681,6 +682,22 @@ DATASET_SOURCES = {
     "split": "train",
     "streaming": True,
     "data_dir": "data/shell",
+},
+
+"swallow_code_v2": {
+    # Apache-2.0 | ~19.6M rows after LLM rewrite pipeline | ~16.1B tokens total
+    # Source: The-Stack-v2 Python snippets refined through 4-stage pipeline:
+    #   syntax validation → length filter → LLM scoring → LLM rewrite
+    # Paper: https://arxiv.org/abs/2505.02881 (TokyoTech LLM, 2025)
+    # Using stage4-llm-rewrite: highest quality subset (self-contained, algorithmically efficient)
+    "hf_name": "tokyotech-llm/swallow-code-v2",
+    "description": "High-quality Python code from The-Stack-v2, refined via 4-stage LLM pipeline (TokyoTech, Apache-2.0)",
+    "category": "code",
+    "max_tokens": 800_000_000,
+    "text_column": "text",
+    "split": "train",
+    "streaming": True,
+    "hf_subset": "stage4-llm-rewrite",
 },
 
 "openhermes": {
