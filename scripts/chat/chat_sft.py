@@ -85,6 +85,7 @@ parser.add_argument("--trendyol-cyber-epochs", type=int, default=1, help="epochs
 parser.add_argument("--tiamz-cybersec-epochs", type=int, default=2, help="epochs of Tiamz cybersecurity Q&A (12K rows)")
 parser.add_argument("--include-english-sft", type=int, default=1, help="1 = include _en variants of bilingual cybersec datasets, 0 = ID only")
 parser.add_argument("--disable-cybersec-sft", action="store_true", help="disable all cybersecurity SFT datasets (for ablation)")
+parser.add_argument("--rules-epochs", type=int, default=4, help="epochs of rules.jsonl (behavioral/safety/format rules)")
 args = parser.parse_args()
 user_config = vars(args).copy()
 # -----------------------------------------------------------------------------
@@ -194,6 +195,8 @@ for group in optimizer.param_groups:
 
 # SFT data mixture and DataLoader
 identity_conversations_filepath = os.path.join(base_dir, "identity_conversations.jsonl")
+rules_filepath = os.path.join(os.path.dirname(__file__), "..", "..", "data", "sft", "rules.jsonl")
+rules_filepath = os.path.normpath(rules_filepath)
 train_tasks = [
     SmolTalk(split="train"), # 460K rows of general conversations
     CustomJSON(filepath=identity_conversations_filepath), # 1000 rows of synthetic identity conversations
@@ -203,6 +206,14 @@ train_tasks = [
     SimpleSpelling(size=200000, split="train"), # 200K rows of Simple Spelling (e.g. spell the word 'apple')
     SpellingBee(size=80000, split="train"), # 80K rows of Spelling Bee (e.g. how many 'r' are in 'strawberry'?)
 ]
+
+# Add rules.jsonl if it exists and rules_epochs > 0
+if args.rules_epochs > 0 and os.path.exists(rules_filepath):
+    rules_tasks = [CustomJSON(filepath=rules_filepath) for _ in range(args.rules_epochs)]
+    train_tasks.extend(rules_tasks)
+    print0(f"Added rules.jsonl: {args.rules_epochs} epoch(s) from {rules_filepath}")
+elif args.rules_epochs > 0:
+    print0(f"WARNING: rules.jsonl not found at {rules_filepath}, skipping")
 
 # Add cybersecurity SFT mixture (preserves cybersec capability from pretraining)
 if not args.disable_cybersec_sft:
