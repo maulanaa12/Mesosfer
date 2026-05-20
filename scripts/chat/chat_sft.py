@@ -515,9 +515,17 @@ while True:
     # evaluate the gradient
     synchronize()
     t0 = time.time()
+    nan_detected = False
     for micro_step in range(grad_accum_steps):
         loss = model(x, y)
         train_loss = loss.detach() # for logging
+        # Skip step if loss is NaN/Inf to prevent gradient corruption
+        if not torch.isfinite(train_loss):
+            nan_detected = True
+            model.zero_grad(set_to_none=True)
+            x, y = next(train_loader)
+            progress = max(progress, approx_progress)
+            break
         loss = loss / grad_accum_steps # each .backward() is a grad sum => normalize loss here
         if scaler is not None:
             scaler.scale(loss).backward()
@@ -525,6 +533,12 @@ while True:
             loss.backward()
         x, y = next(train_loader) # prefetch the next batch while the GPU is busy with forward/backward
         progress = max(progress, approx_progress) # only increase progress monotonically
+
+    if nan_detected:
+        print0(f"WARNING: NaN/Inf loss at step {step}, skipping step")
+        step += 1
+        continue
+
     # step the optimizer
     lrm = get_lr_multiplier(progress)
     muon_momentum = get_muon_momentum(step)
@@ -540,6 +554,8 @@ while True:
         scaler.step(optimizer)
         scaler.update()
     else:
+        # Gradient clipping to prevent exploding gradients
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
     model.zero_grad(set_to_none=True)
     synchronize()
