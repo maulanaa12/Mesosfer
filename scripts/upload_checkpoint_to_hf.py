@@ -1,39 +1,50 @@
 #!/usr/bin/env python3
 """
-Upload checkpoint to HuggingFace Hub (private repo).
+Upload mesosfer artifacts (model checkpoints, tokenizer, dataset) to
+HuggingFace Hub.
 
-Run without arguments for interactive mode (selection menu).
+Run without arguments for interactive mode (top-level selection menu).
 Or use flags directly for non-interactive / scripting.
 
 Usage:
-    # Interactive mode (recommended)
+    # Interactive mode (recommended) — top-level menu picks artifact
     python scripts/upload_checkpoint_to_hf.py
 
+    # ---- Model checkpoints (default --artifact model) -----------------------
     # Upload the latest base checkpoint
     python scripts/upload_checkpoint_to_hf.py --latest
 
-    # Upload the best SFT checkpoint
+    # Upload the best SFT / RL checkpoint
     python scripts/upload_checkpoint_to_hf.py --best --source sft
-
-    # Upload the best RL checkpoint
     python scripts/upload_checkpoint_to_hf.py --best --source rl
 
-    # Upload the best checkpoint (lowest val_bpb)
-    python scripts/upload_checkpoint_to_hf.py --best
-
-    # Upload a specific step
+    # Upload a specific step / model + meta only (skip optimizer)
     python scripts/upload_checkpoint_to_hf.py --step 8000
-
-    # Upload model + meta only (skip optimizer state, faster)
     python scripts/upload_checkpoint_to_hf.py --best --model-only
 
-    # Custom repo
-    python scripts/upload_checkpoint_to_hf.py --best --repo Dummy9898/mesosfer-checkpoints
+    # ---- Tokenizer ---------------------------------------------------------
+    python scripts/upload_checkpoint_to_hf.py --artifact tokenizer
+
+    # ---- Dataset (parquet shards) ------------------------------------------
+    # Upload local cybersecurity shards (default dir)
+    python scripts/upload_checkpoint_to_hf.py --artifact dataset
+
+    # Upload from a custom dir under ~/.cache/mesosfer/
+    python scripts/upload_checkpoint_to_hf.py --artifact dataset \\
+        --dataset-name base_data_cybersecurity
 
 Checkpoint sources:
     base  → ~/.cache/mesosfer/base_checkpoints/<depth>/
     sft   → ~/.cache/mesosfer/chatsft_checkpoints/<depth>/
     rl    → ~/.cache/mesosfer/chatrl_checkpoints/<depth>/
+
+HF repo layout produced by this script:
+    <repo>/
+    ├── base/<depth>/{model,meta,optim}_XXXXXX.{pt,json}
+    ├── sft/<depth>/...
+    ├── rl/<depth>/...
+    ├── tokenizer/{tokenizer.pkl, token_bytes.pt}
+    └── dataset/<dataset-name>/shard_XXXXX.parquet
 """
 
 import os
@@ -41,6 +52,70 @@ import sys
 import json
 import argparse
 from pathlib import Path
+
+# ── ANSI color helpers (per RULES §9 – Scannability) ─────────────────────────
+
+_USE_COLOR = sys.stdout.isatty()
+
+
+def _c(code: str, text: str) -> str:
+    return f"\033[{code}m{text}\033[0m" if _USE_COLOR else text
+
+
+def info(msg: str) -> None:    print(_c("36", msg))   # cyan
+def success(msg: str) -> None: print(_c("32", msg))   # green
+def warn(msg: str) -> None:    print(_c("33", msg))   # yellow
+def err(msg: str) -> None:     print(_c("31", msg))   # red
+
+
+# ── .env loader (no external deps) ───────────────────────────────────────────
+
+def _load_dotenv() -> None:
+    """Load key=value pairs from .env (repo root) into os.environ if not set."""
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return
+    with open(env_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+_load_dotenv()
+
+
+def _resolve_repo(cli_value: str | None) -> str:
+    """
+    Resolve the HF repo ID with this priority:
+      1. --repo CLI flag (explicit)
+      2. HF_REPO env var / .env file
+      3. Prompt the user interactively
+    Never falls back to a hardcoded username.
+    """
+    if cli_value:
+        return cli_value
+    env_repo = os.environ.get("HF_REPO", "").strip()
+    if env_repo and "your_hf_username" not in env_repo:
+        return env_repo
+    # Interactive fallback
+    warn("HF_REPO is not set. Set it in .env or pass --repo.")
+    try:
+        repo = input("  Enter HF repo (e.g. johndoe/mesosfer-checkpoints): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        repo = ""
+    if not repo:
+        err("ERROR: No repo specified. Aborting.")
+        sys.exit(1)
+    return repo
+
+
+# Files that make up the tokenizer artifact (mirrors tok_train.py output)
+TOKENIZER_FILES = ("tokenizer.pkl", "token_bytes.pt")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -347,26 +422,314 @@ def upload_step(api, step: int, ckpt_dir: Path, repo: str, depth: str, source: s
     return uploaded, len(files)
 
 
+# ── Tokenizer upload ──────────────────────────────────────────────────────────
+
+def upload_tokenizer(api, base_dir: str, repo: str) -> None:
+    """Upload tokenizer.pkl + token_bytes.pt to <repo>/tokenizer/."""
+    tokenizer_dir = Path(base_dir) / "tokenizer"
+    if not tokenizer_dir.exists():
+        err(f"ERROR: Tokenizer directory not found: {tokenizer_dir}")
+        err("  Run scripts/train/tok_train.py first to generate the tokenizer.")
+        return
+
+    info(f"\nTokenizer dir: {tokenizer_dir}")
+    info(f"Repo:          {repo}/tokenizer/\n")
+
+    uploaded = 0
+    for filename in TOKENIZER_FILES:
+        filepath = tokenizer_dir / filename
+        if not filepath.exists():
+            warn(f"  SKIP: {filename} not found in {tokenizer_dir}")
+            continue
+        size_mb = filepath.stat().st_size / (1024 * 1024)
+        info(f"  Uploading {filename} ({size_mb:.2f} MB) → tokenizer/{filename}")
+        api.upload_file(
+            path_or_fileobj=str(filepath),
+            path_in_repo=f"tokenizer/{filename}",
+            repo_id=repo,
+            repo_type="model",
+        )
+        uploaded += 1
+        success(f"  ✓ {filename} uploaded")
+
+    if uploaded == 0:
+        err(f"\nNo tokenizer files found in {tokenizer_dir}.")
+    else:
+        success(f"\nDone! {uploaded}/{len(TOKENIZER_FILES)} tokenizer file(s) uploaded to {repo}/tokenizer/")
+
+
+# ── Dataset upload ────────────────────────────────────────────────────────────
+
+# Dataset directories produced locally (relative to mesosfer base_dir).
+# prepare_data.py  → base_data_cybersecurity/  (default --output-dir)
+# dataset.py       → base_data_climbmix/       (ClimbMix parquet shards)
+DATASET_DIRS = [
+    "base_data_cybersecurity",   # output of scripts/data/prepare_data.py
+    "base_data_climbmix",        # output of mesosfer/data/dataset.py
+]
+
+
+def _list_local_parquets(data_dir: Path) -> list[Path]:
+    """Return sorted list of .parquet files in data_dir (no .tmp files)."""
+    if not data_dir.exists():
+        return []
+    return sorted(p for p in data_dir.glob("*.parquet") if not p.name.endswith(".tmp"))
+
+
+def upload_dataset(api, base_dir: str, repo: str, dataset_names: list[str] | None = None) -> None:
+    """
+    Upload parquet shards from one or more local dataset directories to HF Hub.
+
+    Repo layout:  dataset/<dir-name>/shard_XXXXX.parquet
+
+    By default uploads from both:
+      - base_data_cybersecurity/  (prepare_data.py output)
+      - base_data_climbmix/       (dataset.py / ClimbMix shards)
+
+    Pass dataset_names to restrict to specific dirs.
+    Files already present in the repo are skipped (idempotent).
+    """
+    dirs_to_upload = dataset_names if dataset_names else DATASET_DIRS
+
+    # Pre-flight: collect existing files in repo to enable idempotent skip
+    info("\nFetching existing files in repo (for idempotent skip)…")
+    try:
+        existing_in_repo: set[str] = set(api.list_repo_files(repo_id=repo, repo_type="model"))
+    except Exception as e:
+        warn(f"  Could not list repo files ({e}). Will attempt all uploads.")
+        existing_in_repo = set()
+
+    grand_uploaded = grand_skipped = grand_missing = 0
+
+    for dir_name in dirs_to_upload:
+        data_dir = Path(base_dir) / dir_name
+        parquets = _list_local_parquets(data_dir)
+
+        if not parquets:
+            warn(f"\n  [{dir_name}] No parquet files found — skipping.")
+            warn(f"    Expected path: {data_dir}")
+            if dir_name == "base_data_cybersecurity":
+                warn("    Run: python -m scripts.data.prepare_data")
+            elif dir_name == "base_data_climbmix":
+                warn("    Run: python -m mesosfer.data.dataset -n 170")
+            grand_missing += 1
+            continue
+
+        repo_prefix = f"dataset/{dir_name}"
+        info(f"\n  [{dir_name}]  {len(parquets)} shard(s) → {repo}/dataset/{dir_name}/")
+
+        uploaded = skipped = 0
+        for i, filepath in enumerate(parquets, 1):
+            repo_path = f"{repo_prefix}/{filepath.name}"
+            if repo_path in existing_in_repo:
+                info(f"    [{i}/{len(parquets)}] SKIP {filepath.name} (already in repo)")
+                skipped += 1
+                continue
+            size_mb = filepath.stat().st_size / (1024 * 1024)
+            info(f"    [{i}/{len(parquets)}] Uploading {filepath.name} ({size_mb:.1f} MB)…")
+            api.upload_file(
+                path_or_fileobj=str(filepath),
+                path_in_repo=repo_path,
+                repo_id=repo,
+                repo_type="model",
+            )
+            uploaded += 1
+            success(f"    ✓ {filepath.name} uploaded")
+
+        success(f"  [{dir_name}] Done: {uploaded} uploaded, {skipped} skipped")
+        grand_uploaded += uploaded
+        grand_skipped += skipped
+
+    print()
+    if grand_missing == len(dirs_to_upload):
+        err("ERROR: No dataset directories found locally. Nothing was uploaded.")
+    else:
+        success(
+            f"Dataset upload complete: {grand_uploaded} uploaded, "
+            f"{grand_skipped} skipped (already in repo)"
+        )
+        success(f"Repo: {repo}/dataset/")
+
+
+# ── Interactive model option prompts ─────────────────────────────────────────
+
+def _prompt_model_options(args: argparse.Namespace) -> None:
+    """
+    Ask source and depth interactively when the user picks 'model' from the
+    top-level menu (i.e. no CLI flags were given).
+    Mutates args in-place.
+    """
+    print()
+    info("  Checkpoint source:")
+    print("    [1] base   — pretraining  (~/.cache/mesosfer/base_checkpoints/)")
+    print("    [2] sft    — chat SFT     (~/.cache/mesosfer/chatsft_checkpoints/)")
+    print("    [3] rl     — RL/GRPO      (~/.cache/mesosfer/chatrl_checkpoints/)")
+    while True:
+        try:
+            choice = input(f"  Source (1/2/3) [{args.source}]: ").strip() or "1"
+        except (KeyboardInterrupt, EOFError):
+            return
+        if choice in ("1", "base"): args.source = "base"; break
+        if choice in ("2", "sft"):  args.source = "sft";  break
+        if choice in ("3", "rl"):   args.source = "rl";   break
+        warn("  Invalid input. Enter 1, 2, or 3.")
+
+    try:
+        depth_input = input(f"  Depth tag [{args.depth}]: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        depth_input = ""
+    if depth_input:
+        args.depth = depth_input
+
+    try:
+        mo = input("  Skip optimizer state? (model + meta only) [y/N]: ").strip().lower()
+    except (KeyboardInterrupt, EOFError):
+        mo = ""
+    if mo in ("y", "yes"):
+        args.model_only = True
+
+
+# ── Top-level interactive menu ────────────────────────────────────────────────
+
+def top_level_menu(base_dir: str) -> str:
+    """
+    Show the top-level artifact selection menu.
+    Returns: 'model' | 'tokenizer' | 'dataset' | 'exit'
+    """
+    print()
+    print("=" * 50)
+    info("  Upload Mesosfer Artifacts to HuggingFace Hub")
+    print("=" * 50)
+    info(f"  Cache dir: {base_dir}")
+    print()
+    print("  What do you want to upload?")
+    print("    [1] Model + optimizer + meta.json  (checkpoint)")
+    print("    [2] Tokenizer                      (tokenizer.pkl + token_bytes.pt)")
+    print("    [3] Dataset                        (parquet shards)")
+    print("    [4] Exit")
+    print()
+    while True:
+        try:
+            choice = input("  Choice (1/2/3/4): ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            return "exit"
+        if choice in ("1", "model"):     return "model"
+        if choice in ("2", "tokenizer"): return "tokenizer"
+        if choice in ("3", "dataset"):   return "dataset"
+        if choice in ("4", "q", "quit", "exit"): return "exit"
+        warn("  Invalid input. Enter 1, 2, 3, or 4.")
+
+
+# ── HF login helper ───────────────────────────────────────────────────────────
+
+def _hf_login(repo: str) -> object | None:
+    """Import HfApi, verify login, ensure repo exists. Returns api or None."""
+    try:
+        from huggingface_hub import HfApi
+    except ImportError:
+        err("ERROR: huggingface_hub is not installed. Run: pip install huggingface_hub")
+        return None
+
+    api = HfApi()
+    try:
+        user = api.whoami()
+        success(f"Logged in as: {user['name']}")
+    except Exception as e:
+        err(f"ERROR: Could not log in to HuggingFace — {e}")
+        err("Run: hf auth login")
+        return None
+
+    api.create_repo(repo_id=repo, repo_type="model", private=True, exist_ok=True)
+    info(f"Repo: {repo}\n")
+    return api
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Upload checkpoint to HuggingFace Hub")
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--step", type=int, help="Checkpoint step to upload (e.g. 8000)")
-    group.add_argument("--best", action="store_true", help="Automatically upload the checkpoint with the best val_bpb")
-    group.add_argument("--latest", action="store_true", help="Upload the latest checkpoint (highest step)")
-    group.add_argument("--list", action="store_true", help="List all checkpoints and their val_bpb")
-    parser.add_argument("--depth", type=str, default="d24", help="Model depth tag (default: d24)")
-    parser.add_argument("--source", type=str, default="base", choices=["base", "sft", "rl"],
-                        help="Checkpoint source: base (pretraining), sft (chat SFT), rl (RL/GRPO). Default: base")
-    parser.add_argument("--repo", type=str, default="Dummy9898/mesosfer-checkpoints", help="HF repo ID")
-    parser.add_argument("--model-only", action="store_true", help="Upload model + meta only (skip optimizer state)")
-    parser.add_argument("--base-dir", type=str, default=None, help="Override base cache dir")
+    parser = argparse.ArgumentParser(
+        description="Upload mesosfer artifacts (model / tokenizer / dataset) to HuggingFace Hub",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    # Artifact selector (optional — omit for interactive top-level menu)
+    parser.add_argument(
+        "--artifact", choices=["model", "tokenizer", "dataset"], default=None,
+        help="Which artifact to upload. Omit for interactive menu.",
+    )
+    # Common
+    parser.add_argument("--repo", type=str, default=None,
+                        help="HuggingFace repo ID (default: HF_REPO env var, e.g. johndoe/mesosfer-checkpoints)")
+    parser.add_argument("--base-dir", type=str, default=None,
+                        help="Override mesosfer cache dir (default: ~/.cache/mesosfer)")
+
+    # Model checkpoint flags (backward-compatible)
+    g = parser.add_argument_group("model checkpoint")
+    sel = g.add_mutually_exclusive_group()
+    sel.add_argument("--step", type=int, help="Upload a specific step (e.g. 8000)")
+    sel.add_argument("--best", action="store_true",
+                     help="Upload the checkpoint with the best val_bpb")
+    sel.add_argument("--latest", action="store_true",
+                     help="Upload the latest checkpoint (highest step)")
+    sel.add_argument("--list", action="store_true",
+                     help="List local checkpoints and exit")
+    g.add_argument("--depth", type=str, default="d24",
+                   help="Model depth tag (default: d24)")
+    g.add_argument("--source", type=str, default="base", choices=["base", "sft", "rl"],
+                   help="Checkpoint source: base | sft | rl (default: base)")
+    g.add_argument("--model-only", action="store_true",
+                   help="Upload model + meta only (skip optimizer state)")
+
+    # Dataset flags
+    g = parser.add_argument_group("dataset")
+    g.add_argument(
+        "--dataset-dirs", nargs="*", default=None,
+        metavar="DIR_NAME",
+        help=(
+            "Dataset dir name(s) under mesosfer cache to upload "
+            "(default: base_data_cybersecurity base_data_climbmix). "
+            "Example: --dataset-dirs base_data_cybersecurity"
+        ),
+    )
+
     args = parser.parse_args()
 
     base_dir = args.base_dir or os.path.expanduser("~/.cache/mesosfer")
 
-    # Map source to checkpoint subdirectory
+    # Resolve repo — env var / .env / interactive prompt
+    args.repo = _resolve_repo(args.repo)
+
+    # ── Determine artifact via top-level menu if not given by flag ────────────
+    model_flags_given = bool(args.step or args.best or args.latest or args.list)
+
+    if args.artifact is None and not model_flags_given:
+        # No flags at all → show top-level menu
+        artifact = top_level_menu(base_dir)
+        if artifact == "exit":
+            info("\nGoodbye.")
+            return
+        args.artifact = artifact
+        # For model: ask source + depth interactively before touching the filesystem
+        if artifact == "model":
+            _prompt_model_options(args)
+    elif args.artifact is None:
+        # Legacy: model flags given without --artifact → default to model
+        args.artifact = "model"
+
+    # ── HF login (shared for all artifacts) ──────────────────────────────────
+    api = _hf_login(args.repo)
+    if api is None:
+        return
+
+    # ── Dispatch ─────────────────────────────────────────────────────────────
+    if args.artifact == "tokenizer":
+        upload_tokenizer(api, base_dir, args.repo)
+        return
+
+    if args.artifact == "dataset":
+        upload_dataset(api, base_dir, args.repo, args.dataset_dirs)
+        return
+
+    # ── artifact == "model" ───────────────────────────────────────────────────
     source_dir_map = {
         "base": "base_checkpoints",
         "sft":  "chatsft_checkpoints",
@@ -376,25 +739,23 @@ def main():
     ckpt_dir = Path(base_dir) / ckpt_subdir / args.depth
 
     if not ckpt_dir.exists():
-        print(f"ERROR: Checkpoint directory not found: {ckpt_dir}")
-        print(f"  source={args.source!r} maps to: {ckpt_subdir}/{args.depth}/")
+        err(f"ERROR: Checkpoint directory not found: {ckpt_dir}")
+        err(f"  source={args.source!r} maps to: {ckpt_subdir}/{args.depth}/")
         if args.source == "sft":
-            print("  Make sure SFT training has completed and saved a checkpoint.")
+            err("  Make sure SFT training has completed and saved a checkpoint.")
         elif args.source == "rl":
-            print("  Make sure RL training has completed and saved a checkpoint.")
+            err("  Make sure RL training has completed and saved a checkpoint.")
         return
 
-    # ── Interactive mode if no flags given ───────────────────────────────────
+    # ── Interactive checkpoint sub-menu (no model flags given) ───────────────
     chosen_steps: list[int] = []
-    no_flag_given = not (args.step or args.best or args.latest or args.list)
-
-    if no_flag_given:
-        print(f"\n  Source: {args.source} ({ckpt_dir})")
+    if not model_flags_given:
+        info(f"\n  Source: {args.source} ({ckpt_dir})")
         mode, _ = interactive_menu(ckpt_dir)
         if mode == "quit":
             return
         elif mode == "list":
-            print(f"\nCheckpoint dir: {ckpt_dir}")
+            info(f"\nCheckpoint dir: {ckpt_dir}")
             list_checkpoints(ckpt_dir)
             return
         elif mode == "latest":
@@ -404,30 +765,28 @@ def main():
         elif mode == "choose":
             rows = load_all_checkpoints(ckpt_dir)
             if not rows:
-                print("No checkpoints found.")
+                err("No checkpoints found.")
                 return
-            print("\n  Use SPACE to select, ENTER to confirm:\n")
+            info("\n  Use SPACE to select, ENTER to confirm:\n")
             chosen_steps = checkbox_select(rows)
             if not chosen_steps:
-                print("\nNo checkpoints selected. Cancelled.")
+                warn("\nNo checkpoints selected. Cancelled.")
                 return
-            print(f"\n  Selected: {len(chosen_steps)} checkpoint(s) — {chosen_steps}")
+            info(f"\n  Selected: {len(chosen_steps)} checkpoint(s) — {chosen_steps}")
 
-    # Mode --list
+    # Mode --list (CLI flag)
     if args.list:
-        print(f"Checkpoint dir: {ckpt_dir}")
+        info(f"Checkpoint dir: {ckpt_dir}")
         list_checkpoints(ckpt_dir)
         return
 
-    # Determine the list of steps to upload
+    # Determine steps to upload
     steps_to_upload: list[int] = []
-
     if chosen_steps:
-        # Choose mode: already determined from checkbox selection
         steps_to_upload = chosen_steps
         for s in steps_to_upload:
             meta_path = ckpt_dir / f"meta_{s:06d}.json"
-            val_bpb = "N/A"
+            val_bpb: float | str = "N/A"
             if meta_path.exists():
                 try:
                     with open(meta_path, encoding="utf-8") as f:
@@ -435,15 +794,15 @@ def main():
                 except Exception:
                     pass
             bpb_str = f"{val_bpb:.6f}" if isinstance(val_bpb, float) else str(val_bpb)
-            print(f"  • step {s:,}  (val_bpb={bpb_str})")
+            info(f"  • step {s:,}  (val_bpb={bpb_str})")
     elif args.best:
         step, best_bpb = find_best_checkpoint(ckpt_dir)
-        print(f"\nBest checkpoint: step {step} (val_bpb={best_bpb:.6f})")
+        info(f"\nBest checkpoint: step {step} (val_bpb={best_bpb:.6f})")
         steps_to_upload = [step]
     elif args.latest:
         step, val_bpb = find_latest_checkpoint(ckpt_dir)
         bpb_info = f"val_bpb={val_bpb:.6f}" if isinstance(val_bpb, float) else "val_bpb=N/A"
-        print(f"\nLatest checkpoint: step {step} ({bpb_info})")
+        info(f"\nLatest checkpoint: step {step} ({bpb_info})")
         steps_to_upload = [step]
     elif args.step:
         step = args.step
@@ -451,48 +810,26 @@ def main():
         if meta_path.exists():
             with open(meta_path, encoding="utf-8") as f:
                 val_bpb = json.load(f).get("val_bpb", "N/A")
-            print(f"Uploading step {step} (val_bpb={val_bpb})")
+            info(f"Uploading step {step} (val_bpb={val_bpb})")
         else:
-            print(f"Uploading step {step} (meta not found)")
+            info(f"Uploading step {step} (meta not found)")
         steps_to_upload = [step]
     else:
         parser.print_help()
         return
 
-    # ── Login HuggingFace ─────────────────────────────────────────────────────
-    try:
-        from huggingface_hub import HfApi
-    except ImportError:
-        print("ERROR: huggingface_hub is not installed. Run: pip install huggingface_hub")
-        return
-
-    api = HfApi()
-    try:
-        user = api.whoami()
-        print(f"\nLogged in as: {user['name']}")
-    except Exception as e:
-        print(f"ERROR: Could not log in to HuggingFace — {e}")
-        print("Run: hf auth login")
-        return
-
-    # Ensure repo exists
-    api.create_repo(repo_id=args.repo, repo_type="model", private=True, exist_ok=True)
-    print(f"Repo: {args.repo}\n")
-
-    # ── Upload all selected steps ─────────────────────────────────────────────
-    grand_uploaded = 0
-    grand_total = 0
-
+    # Upload
+    grand_uploaded = grand_total = 0
     for i, step in enumerate(steps_to_upload, 1):
         if len(steps_to_upload) > 1:
-            print(f"── [{i}/{len(steps_to_upload)}] step {step:,} ──")
+            info(f"── [{i}/{len(steps_to_upload)}] step {step:,} ──")
         uploaded, total = upload_step(api, step, ckpt_dir, args.repo, args.depth, args.source, args.model_only)
         grand_uploaded += uploaded
         grand_total += total
         if len(steps_to_upload) > 1:
             print()
 
-    print(f"Done! {grand_uploaded}/{grand_total} file(s) uploaded to {args.repo}/{args.source}/{args.depth}/")
+    success(f"Done! {grand_uploaded}/{grand_total} file(s) uploaded to {args.repo}/{args.source}/{args.depth}/")
 
 
 if __name__ == "__main__":
