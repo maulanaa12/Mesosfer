@@ -406,7 +406,7 @@ ruff check .
 | Model | Parameters | Tokens | Validation BPB | CORE Score |
 |-------|-----------|--------|----------------|------------|
 | GPT-2 (reference) | ~124M | ~5B | ~0.97 | ~25 |
-| mesosfer d24 (ratio=10) | ~1.38B | ~7.3B | TBD | TBD |
+| mesosfer d24 (ratio=10) | ~1.38B | ~7.3B | 0.7337 | 0.2541 |
 
 > CORE score: average of MMLU (5-shot), GSM8K (COT), ARC-C, HumanEval (pass@1)
 
