@@ -104,11 +104,17 @@ def place_eval_bundle(file_path):
     print0(f"Placed eval_bundle directory at {eval_bundle_dir}")
 
 
-def evaluate_core(model, tokenizer, device, max_per_task=-1):
+def evaluate_core(model, tokenizer, device, max_per_task=-1, skip_tasks=None):
     """
     Evaluate a base model on the CORE benchmark.
     Returns dict with results, centered_results, and core_metric.
+
+    Args:
+        skip_tasks: set of task labels to skip (e.g. {'jeopardy'} for tasks
+                    that are too general for a cybersecurity-focused model).
     """
+    if skip_tasks is None:
+        skip_tasks = set()
     base_dir = get_base_dir()
     eval_bundle_dir = os.path.join(base_dir, "eval_bundle")
     # Download the eval bundle if needed
@@ -138,6 +144,12 @@ def evaluate_core(model, tokenizer, device, max_per_task=-1):
     for task in tasks:
         start_time = time.time()
         label = task['label']
+
+        # Skip tasks that are too general for a cybersecurity-focused model
+        if label in skip_tasks:
+            print0(f"Skipping: {label} (in --skip-tasks list)")
+            continue
+
         task_meta = {
             'task_type': task['icl_task_type'],
             'dataset_uri': task['dataset_uri'],
@@ -185,6 +197,13 @@ def main():
     parser.add_argument('--device-batch-size', type=int, default=32, help='Per-device batch size for BPB evaluation')
     parser.add_argument('--split-tokens', type=int, default=40*524288, help='Number of tokens to evaluate per split for BPB')
     parser.add_argument('--device-type', type=str, default='', help='cuda|cpu|mps (empty = autodetect)')
+    # Mesosfer-specific: skip overly general tasks that are less relevant for a cybersec-focused model
+    parser.add_argument('--skip-tasks', type=str, default='jeopardy',
+                        help='Comma-separated CORE task labels to skip (default: jeopardy). '
+                             'Use "none" to run all tasks.')
+    # Mesosfer-specific: evaluate cybersecurity MMLU subsets on top of CORE
+    parser.add_argument('--cybersec-eval', type=int, default=1,
+                        help='1 = run cybersecurity MMLU subsets after CORE (default), 0 = skip')
     args = parser.parse_args()
 
     # Parse evaluation modes
@@ -286,7 +305,15 @@ def main():
         print0("\n" + "="*80)
         print0("CORE Evaluation")
         print0("="*80)
-        core_results = evaluate_core(model, tokenizer, device, max_per_task=args.max_per_task)
+        # Parse skip list
+        skip_tasks_set = set()
+        if args.skip_tasks.lower() != 'none':
+            skip_tasks_set = {t.strip() for t in args.skip_tasks.split(',') if t.strip()}
+        if skip_tasks_set:
+            print0(f"Skipping tasks: {', '.join(sorted(skip_tasks_set))}")
+        core_results = evaluate_core(model, tokenizer, device,
+                                     max_per_task=args.max_per_task,
+                                     skip_tasks=skip_tasks_set)
 
         # Write CSV output
         if ddp_rank == 0:
@@ -303,6 +330,89 @@ def main():
             print0(f"\nResults written to: {output_csv_path}")
             print0(f"CORE metric: {core_results['core_metric']:.4f}")
 
+    # --- Cybersecurity domain evaluation (Mesosfer-specific) ---
+    cybersec_results = {}
+    if 'core' in eval_modes and args.cybersec_eval and not is_hf_model:
+        print0("\n" + "="*80)
+        print0("Cybersecurity Domain Evaluation (Mesosfer)")
+        print0("="*80)
+
+        base_dir = get_base_dir()
+        eval_bundle_dir = os.path.join(base_dir, "eval_bundle")
+        data_base_path = os.path.join(eval_bundle_dir, "eval_data")
+
+        # Cybersecurity-relevant MMLU subsets available in the eval bundle
+        # These measure domain knowledge directly relevant to Mesosfer's focus
+        cybersec_tasks_cfg = [
+            {
+                "label": "mmlu_computer_security",
+                "dataset_uri": "mmlu_computer_security.jsonl",
+                "task_type": "multiple_choice",
+                "num_fewshot": 5,
+                "random_baseline": 25.0,
+                "description": "MMLU Computer Security (5-shot)",
+            },
+            {
+                "label": "mmlu_cybersecurity",
+                "dataset_uri": "mmlu_cybersecurity.jsonl",
+                "task_type": "multiple_choice",
+                "num_fewshot": 5,
+                "random_baseline": 25.0,
+                "description": "MMLU Cybersecurity (5-shot)",
+            },
+            {
+                "label": "mmlu_network_security",
+                "dataset_uri": "mmlu_network_security.jsonl",
+                "task_type": "multiple_choice",
+                "num_fewshot": 5,
+                "random_baseline": 25.0,
+                "description": "MMLU Network Security (5-shot)",
+            },
+        ]
+
+        for cfg in cybersec_tasks_cfg:
+            data_path = os.path.join(data_base_path, cfg["dataset_uri"])
+            if not os.path.exists(data_path):
+                print0(f"  {cfg['label']}: data not found at {data_path}, skipping")
+                continue
+
+            print0(f"Evaluating: {cfg['description']}... ", end='')
+            start_time = time.time()
+
+            with open(data_path, 'r', encoding='utf-8') as f:
+                data = [json.loads(line.strip()) for line in f]
+
+            shuffle_rng = random.Random(1337)
+            shuffle_rng.shuffle(data)
+            if args.max_per_task > 0:
+                data = data[:args.max_per_task]
+
+            task_meta = {
+                'task_type': cfg['task_type'],
+                'dataset_uri': cfg['dataset_uri'],
+                'num_fewshot': cfg['num_fewshot'],
+                'continuation_delimiter': ' ',
+            }
+            accuracy = evaluate_task(model, tokenizer, data, device, task_meta)
+            baseline = cfg['random_baseline']
+            centered = (accuracy - 0.01 * baseline) / (1.0 - 0.01 * baseline)
+            cybersec_results[cfg['label']] = {'accuracy': accuracy, 'centered': centered}
+            elapsed = time.time() - start_time
+            print0(f"accuracy: {accuracy:.4f} | centered: {centered:.4f} | time: {elapsed:.2f}s")
+
+        if cybersec_results:
+            cybersec_metric = sum(v['centered'] for v in cybersec_results.values()) / len(cybersec_results)
+            print0(f"\nCybersec domain metric: {cybersec_metric:.4f}")
+
+            # Append to CSV
+            if ddp_rank == 0 and core_results is not None:
+                output_csv_path = os.path.join(get_base_dir(), "base_eval", f"{model_slug}.csv")
+                with open(output_csv_path, 'a', encoding='utf-8', newline='') as f:
+                    f.write(f"\n# Cybersecurity Domain Tasks\n")
+                    for label, v in cybersec_results.items():
+                        f.write(f"{label:<35}, {v['accuracy']:<10.6f}, {v['centered']:<10.6f}\n")
+                    f.write(f"{'CybersecDomain':<35}, {'':<10}, {cybersec_metric:<10.6f}\n")
+
     # --- Log to report ---
     from mesosfer.utils.report import get_report
     report_data = [{"model": model_name}]
@@ -310,6 +420,11 @@ def main():
     if core_results:
         report_data[0]["CORE metric"] = core_results["core_metric"]
         report_data.append(core_results["centered_results"])
+
+    if cybersec_results:
+        cybersec_metric = sum(v['centered'] for v in cybersec_results.values()) / len(cybersec_results)
+        report_data[0]["CybersecDomain metric"] = cybersec_metric
+        report_data.append({k: v['accuracy'] for k, v in cybersec_results.items()})
 
     if bpb_results:
         report_data[0]["train bpb"] = bpb_results.get("train")
