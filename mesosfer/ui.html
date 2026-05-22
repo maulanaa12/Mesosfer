@@ -4,36 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Mesosfer</title>
-    <link rel="icon" type="image/svg+xml" href="/logo.svg">
-    <link rel="stylesheet" href="/interface/style.css">
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="interface/style.css">
     <!-- highlight.js — syntax highlighting for code blocks -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 </head>
 <body>
 
     <!-- ── Header ── -->
-    <div class="header">
+    <header class="header" role="banner">
         <div class="header-left">
-            <button class="new-conversation-btn" onclick="newConversation()" title="New Conversation (Ctrl+Shift+N)">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <button
+                class="new-conversation-btn"
+                onclick="newConversation()"
+                title="New Conversation (Ctrl+Shift+N)"
+                aria-label="Start new conversation"
+            >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M12 5v14"></path>
                     <path d="M5 12h14"></path>
                 </svg>
             </button>
-            <h1>Mesosfer</h1>
+            <div class="header-wordmark">
+                <img src="logo.svg" alt="" class="header-logo" width="24" height="24" aria-hidden="true">
+                <h1>Mesosfer</h1>
+            </div>
         </div>
-    </div>
+    </header>
 
     <!-- ── Chat area ── -->
-    <div class="chat-container" id="chatContainer">
-        <div class="chat-wrapper" id="chatWrapper">
+    <main class="chat-container" id="chatContainer" role="main" aria-label="Conversation">
+        <div class="chat-wrapper" id="chatWrapper" aria-live="polite" aria-atomic="false">
             <!-- Messages are injected here by chat.js -->
         </div>
-    </div>
+    </main>
 
     <!-- ── Empty state (shown when no conversation) ── -->
-    <div class="empty-state" id="emptyState">
-        <h2 class="empty-state-title">Welcome to Mesosfer</h2>
+    <div class="empty-state" id="emptyState" role="region" aria-label="Start a conversation">
+        <h2 class="empty-state-title">What can I help with?</h2>
         <div class="empty-input-wrapper">
             <textarea
                 id="emptyInput"
@@ -41,9 +51,17 @@
                 placeholder="Ask anything"
                 rows="1"
                 onkeydown="handleEmptyKeyDown(event)"
+                aria-label="Message input"
+                aria-multiline="true"
             ></textarea>
-            <button id="emptySendButton" class="empty-send-button" onclick="sendFromEmpty()" disabled>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <button
+                id="emptySendButton"
+                class="empty-send-button"
+                onclick="sendFromEmpty()"
+                disabled
+                aria-label="Send message"
+            >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M22 2L11 13"></path>
                     <path d="M22 2l-7 20-4-9-9-4 20-7z"></path>
                 </svg>
@@ -54,17 +72,17 @@
     <!-- ── Feedback modal ── -->
     <div class="modal-overlay" id="feedbackOverlay" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
         <div class="modal">
-            <p class="modal-title" id="feedbackTitle">Provide Feedback</p>
-            <p class="modal-subtitle">Help us improve Mesosfer by sharing your thoughts on this response.</p>
+            <p class="modal-title" id="feedbackTitle">Share feedback</p>
+            <p class="modal-subtitle">Help improve Mesosfer by sharing your thoughts on this response.</p>
 
             <div class="modal-field">
                 <label class="modal-label" for="feedbackReason">Reason</label>
-                <select class="modal-select" id="feedbackReason">
+                <select class="modal-select" id="feedbackReason" aria-required="false">
                     <option value="" disabled selected>Select a reason...</option>
                     <option value="inappropriate_response">Inappropriate response</option>
-                    <option value="continuous_repetition">Continuous repetition of words</option>
+                    <option value="continuous_repetition">Continuous repetition</option>
                     <option value="factually_incorrect">Factually incorrect</option>
-                    <option value="too_verbose">Too verbose/unhelpful</option>
+                    <option value="too_verbose">Too verbose or unhelpful</option>
                     <option value="formatting_issues">Formatting issues</option>
                     <option value="other">Other</option>
                 </select>
@@ -72,18 +90,19 @@
 
             <div class="modal-field">
                 <label class="modal-label" for="feedbackComment">
-                    Comment <span style="color:#9ca3af;font-weight:400">(optional)</span>
+                    Comment <span style="color:var(--color-muted-soft);font-weight:400">(optional)</span>
                 </label>
                 <textarea
                     class="modal-textarea"
                     id="feedbackComment"
                     placeholder="Tell us more about the issue..."
                     rows="3"
+                    aria-label="Additional feedback comment"
                 ></textarea>
             </div>
 
-            <div class="modal-toast" id="feedbackToast">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <div class="modal-toast" id="feedbackToast" role="status" aria-live="polite">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M20 6L9 17l-5-5"/>
                 </svg>
                 Feedback submitted. Thank you!
@@ -97,30 +116,55 @@
     </div>
 
     <!-- ── Input bar (shown during active conversation) ── -->
-    <div class="input-container" id="inputContainer">
+    <div class="input-container" id="inputContainer" role="region" aria-label="Message input">
         <div class="input-wrapper">
-            <textarea
-                id="chatInput"
-                class="chat-input"
-                placeholder="Ask anything"
-                rows="1"
-                onkeydown="handleKeyDown(event)"
-            ></textarea>
-            <button id="sendButton" class="send-button" onclick="sendMessage()" disabled>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 2L11 13"></path>
-                    <path d="M22 2l-7 20-4-9-9-4 20-7z"></path>
-                </svg>
-            </button>
+            <div class="input-row">
+                <textarea
+                    id="chatInput"
+                    class="chat-input"
+                    placeholder="Ask anything"
+                    rows="1"
+                    onkeydown="handleKeyDown(event)"
+                    aria-label="Message input"
+                    aria-multiline="true"
+                ></textarea>
+                <button
+                    id="sendButton"
+                    class="send-button"
+                    onclick="sendMessage()"
+                    disabled
+                    aria-label="Send message"
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M22 2L11 13"></path>
+                        <path d="M22 2l-7 20-4-9-9-4 20-7z"></path>
+                    </svg>
+                </button>
+                <button
+                    id="stopButton"
+                    class="stop-button"
+                    onclick="stopGeneration()"
+                    style="display:none"
+                    aria-label="Stop generation"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <rect x="4" y="4" width="16" height="16" rx="2"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="input-meta">
+                <span class="input-hints" aria-hidden="true">Enter to send · Shift+Enter for newline · ↑ for last message</span>
+                <span id="charCounter" class="char-counter" aria-live="polite" aria-atomic="true"></span>
+            </div>
         </div>
     </div>
 
-    <!-- highlight.js core (no auto-init — we call hljs.highlight() manually) -->
+    <!-- highlight.js core -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <!-- feedback.js must load before chat.js -->
-    <script src="/interface/feedback.js"></script>
-    <script src="/interface/markdown.js"></script>
-    <script src="/interface/chat.js"></script>
+    <script src="interface/feedback.js"></script>
+    <script src="interface/markdown.js"></script>
+    <script src="interface/chat.js"></script>
 
 </body>
 </html>

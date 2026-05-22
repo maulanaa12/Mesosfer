@@ -13,20 +13,27 @@
 const API_URL = '';
 
 // ── State ──────────────────────────────────────────────────────────────────
-let messages          = [];
-let isGenerating      = false;
+let messages           = [];
+let isGenerating       = false;
 let currentTemperature = 0.8;
-let currentTopK       = 50;
+let currentTopK        = 50;
+let currentReader      = null; // for stop generation
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
-const chatContainer  = document.getElementById('chatContainer');
-const chatWrapper    = document.getElementById('chatWrapper');
-const chatInput      = document.getElementById('chatInput');
-const sendButton     = document.getElementById('sendButton');
-const inputContainer = document.getElementById('inputContainer');
-const emptyState     = document.getElementById('emptyState');
-const emptyInput     = document.getElementById('emptyInput');
+const chatContainer   = document.getElementById('chatContainer');
+const chatWrapper     = document.getElementById('chatWrapper');
+const chatInput       = document.getElementById('chatInput');
+const sendButton      = document.getElementById('sendButton');
+const stopButton      = document.getElementById('stopButton');
+const inputContainer  = document.getElementById('inputContainer');
+const emptyState      = document.getElementById('emptyState');
+const emptyInput      = document.getElementById('emptyInput');
 const emptySendButton = document.getElementById('emptySendButton');
+const charCounter     = document.getElementById('charCounter');
+
+// ── Char counter limits ────────────────────────────────────────────────────
+const CHAR_WARN   = 2000;
+const CHAR_DANGER = 4000;
 
 // ── Empty state helpers ────────────────────────────────────────────────────
 
@@ -63,11 +70,7 @@ function handleEmptyKeyDown(event) {
 async function sendFromEmpty() {
     const message = emptyInput.value.trim();
     if (!message) return;
-
-    // Transition to conversation mode first
     hideEmptyState();
-
-    // Populate the regular input and trigger send
     chatInput.value = message;
     await sendMessage();
 }
@@ -77,22 +80,70 @@ chatInput.addEventListener('input', function () {
     this.style.height = 'auto';
     this.style.height = Math.min(this.scrollHeight, 200) + 'px';
     sendButton.disabled = !this.value.trim() || isGenerating;
+    updateCharCounter(this.value.length);
 });
+
+function updateCharCounter(len) {
+    if (len === 0) {
+        charCounter.textContent = '';
+        charCounter.className = 'char-counter';
+        return;
+    }
+    charCounter.textContent = len.toLocaleString();
+    if (len > CHAR_DANGER) {
+        charCounter.className = 'char-counter danger';
+    } else if (len > CHAR_WARN) {
+        charCounter.className = 'char-counter warn';
+    } else {
+        charCounter.className = 'char-counter';
+    }
+}
 
 function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         sendMessage();
+        return;
+    }
+    // ↑ arrow when input is empty — recall last user message
+    if (event.key === 'ArrowUp' && chatInput.value === '') {
+        const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+        if (lastUserMsg) {
+            chatInput.value = lastUserMsg.content;
+            chatInput.style.height = 'auto';
+            chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
+            sendButton.disabled = false;
+            updateCharCounter(chatInput.value.length);
+            // Move cursor to end
+            chatInput.selectionStart = chatInput.selectionEnd = chatInput.value.length;
+            event.preventDefault();
+        }
     }
 }
 
 document.addEventListener('keydown', (event) => {
-    // Ctrl+Shift+N — new conversation
     if (event.ctrlKey && event.shiftKey && event.key === 'N') {
         event.preventDefault();
         if (!isGenerating) newConversation();
     }
 });
+
+// ── Stop generation ────────────────────────────────────────────────────────
+function stopGeneration() {
+    if (currentReader) {
+        currentReader.cancel();
+        currentReader = null;
+    }
+}
+
+// ── Generation UI state ────────────────────────────────────────────────────
+function setGeneratingState(generating) {
+    isGenerating = generating;
+    sendButton.style.display  = generating ? 'none' : 'flex';
+    stopButton.style.display  = generating ? 'flex' : 'none';
+    chatInput.disabled        = generating;
+    sendButton.disabled       = generating || !chatInput.value.trim();
+}
 
 // ── Conversation management ────────────────────────────────────────────────
 function newConversation() {
@@ -102,8 +153,15 @@ function newConversation() {
     chatInput.style.height = 'auto';
     sendButton.disabled = false;
     isGenerating = false;
+    currentReader = null;
+    updateCharCounter(0);
     resetFeedbackState();
     showEmptyState();
+}
+
+// ── Timestamp helper ───────────────────────────────────────────────────────
+function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 // ── Message rendering ──────────────────────────────────────────────────────
@@ -111,12 +169,9 @@ function newConversation() {
 /**
  * Append a message bubble to the chat.
  *
- * For assistant messages with a known messageIndex the function also
- * attaches the thumbs-up/down action bar (via feedback.js).
- *
  * @param {'user'|'assistant'|'console'} role
  * @param {string}  content
- * @param {number|null} messageIndex  — null during streaming (placeholder)
+ * @param {number|null} messageIndex
  * @returns {HTMLElement} the inner content div
  */
 function addMessage(role, content, messageIndex = null) {
@@ -145,22 +200,67 @@ function addMessage(role, content, messageIndex = null) {
 
     messageDiv.appendChild(contentDiv);
 
-    // Attach placeholder action bar for assistant messages.
-    // Listeners are wired with the real index in wireThumbButtons() after
-    // generation completes.
+    // Timestamp
+    if (role === 'user' || role === 'assistant') {
+        const ts = document.createElement('div');
+        ts.className = 'message-timestamp';
+        ts.textContent = formatTime(new Date());
+        ts.setAttribute('aria-label', `Sent at ${ts.textContent}`);
+        messageDiv.appendChild(ts);
+    }
+
+    // Action bar for assistant messages
     if (role === 'assistant') {
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'message-actions';
+        actionsDiv.setAttribute('aria-label', 'Message actions');
+
+        // Copy response button
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-response-btn';
+        copyBtn.title = 'Copy response';
+        copyBtn.setAttribute('aria-label', 'Copy response');
+        copyBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+        actionsDiv.appendChild(copyBtn);
 
         const { thumbUpBtn, thumbDownBtn } = buildThumbButtons();
         actionsDiv.appendChild(thumbUpBtn);
         actionsDiv.appendChild(thumbDownBtn);
         messageDiv.appendChild(actionsDiv);
+
+        // Wire copy button (content not available yet during streaming — wired later)
+        copyBtn._contentDiv = contentDiv;
     }
 
     chatWrapper.appendChild(messageDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
     return contentDiv;
+}
+
+// ── Wire copy response button ──────────────────────────────────────────────
+function wireCopyResponseButton(messageDiv, fullText) {
+    const copyBtn = messageDiv.querySelector('.copy-response-btn');
+    if (!copyBtn) return;
+    copyBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+            await navigator.clipboard.writeText(fullText);
+        } catch (_) {
+            const ta = document.createElement('textarea');
+            ta.value = fullText;
+            ta.style.cssText = 'position:fixed;opacity:0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+        copyBtn.classList.add('copied');
+        copyBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>`;
+        setTimeout(() => {
+            copyBtn.classList.remove('copied');
+            copyBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+        }, 2000);
+    });
 }
 
 // ── Edit / regenerate ──────────────────────────────────────────────────────
@@ -171,6 +271,7 @@ function editMessage(messageIndex) {
     chatInput.value = messages[messageIndex].content;
     chatInput.style.height = 'auto';
     chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
+    updateCharCounter(chatInput.value.length);
 
     messages = messages.slice(0, messageIndex);
 
@@ -199,12 +300,16 @@ async function regenerateMessage(messageIndex) {
 
 // ── Generation ─────────────────────────────────────────────────────────────
 async function generateAssistantResponse() {
-    isGenerating = true;
-    sendButton.disabled = true;
+    setGeneratingState(true);
 
-    // Add placeholder bubble (messageIndex unknown until streaming finishes)
+    // Typing indicator bubble
     const assistantContent = addMessage('assistant', '');
-    assistantContent.innerHTML = '<span class="typing-indicator"></span>';
+    const typingEl = document.createElement('span');
+    typingEl.className = 'typing-indicator';
+    typingEl.setAttribute('aria-label', 'Generating response');
+    typingEl.innerHTML = '<span></span><span></span><span></span>';
+    assistantContent.innerHTML = '';
+    assistantContent.appendChild(typingEl);
 
     try {
         const response = await fetch(`${API_URL}/chat/completions`, {
@@ -222,13 +327,18 @@ async function generateAssistantResponse() {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const reader  = response.body.getReader();
+        currentReader = response.body.getReader();
         const decoder = new TextDecoder();
         let fullResponse = '';
         assistantContent.textContent = '';
 
+        // Streaming cursor
+        const cursor = document.createElement('span');
+        cursor.className = 'streaming-cursor';
+        cursor.setAttribute('aria-hidden', 'true');
+
         while (true) {
-            const { done, value } = await reader.read();
+            const { done, value } = await currentReader.read();
             if (done) break;
 
             const chunk = decoder.decode(value);
@@ -238,20 +348,21 @@ async function generateAssistantResponse() {
                         const data = JSON.parse(line.slice(6));
                         if (data.token) {
                             fullResponse += data.token;
-                            // During streaming: plain text for performance
                             assistantContent.textContent = renderStreamingText(fullResponse);
+                            assistantContent.appendChild(cursor);
                             chatContainer.scrollTop = chatContainer.scrollHeight;
                         }
-                    } catch (_) { /* partial chunk — ignore */ }
+                    } catch (_) { /* partial chunk */ }
                 }
             }
         }
 
-        // Streaming done — upgrade to rich markdown rendering
+        // Remove cursor, upgrade to rich markdown
+        cursor.remove();
         assistantContent.textContent = '';
         assistantContent.appendChild(renderMarkdown(fullResponse));
 
-        // Commit to messages array and wire up interactions
+        // Commit to messages array
         const assistantMessageIndex = messages.length;
         messages.push({ role: 'assistant', content: fullResponse });
 
@@ -261,18 +372,24 @@ async function generateAssistantResponse() {
             if (!isGenerating) regenerateMessage(assistantMessageIndex);
         });
 
-        // Wire thumb buttons now that we have the real index
+        // Wire thumb buttons and copy button
         const messageDiv = assistantContent.closest('.message.assistant');
         if (messageDiv) {
             const actionsDiv = messageDiv.querySelector('.message-actions');
             if (actionsDiv) wireThumbButtons(actionsDiv, assistantMessageIndex);
+            wireCopyResponseButton(messageDiv, fullResponse);
         }
 
     } catch (error) {
-        console.error('Error:', error);
-        assistantContent.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+        if (error.name === 'AbortError' || error.message?.includes('cancel')) {
+            // User stopped generation — keep what was rendered
+        } else {
+            console.error('Error:', error);
+            assistantContent.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+        }
     } finally {
-        isGenerating = false;
+        currentReader = null;
+        setGeneratingState(false);
         sendButton.disabled = !chatInput.value.trim();
     }
 }
@@ -342,12 +459,14 @@ async function sendMessage() {
     if (message.startsWith('/')) {
         chatInput.value = '';
         chatInput.style.height = 'auto';
+        updateCharCounter(0);
         handleSlashCommand(message);
         return;
     }
 
     chatInput.value = '';
     chatInput.style.height = 'auto';
+    updateCharCounter(0);
 
     const userMessageIndex = messages.length;
     messages.push({ role: 'user', content: message });
@@ -358,16 +477,18 @@ async function sendMessage() {
 
 // ── Init ───────────────────────────────────────────────────────────────────
 sendButton.disabled = false;
-
-// Start in empty state
 showEmptyState();
 
 fetch(`${API_URL}/health`)
     .then(r => r.json())
     .then(data => console.log('Engine status:', data))
     .catch(() => {
-        // Show error in chat area (switch out of empty state to display it)
-        hideEmptyState();
-        chatWrapper.innerHTML =
-            '<div class="error-message">Engine not running. Please start the server first.</div>';
+        // Server not running — stay in empty state, show a non-blocking warning
+        console.warn('Engine not running. Start the server to use the chat.');
+        const warning = document.createElement('p');
+        warning.style.cssText = 'font-size:0.8125rem;color:var(--color-muted);margin:0;text-align:center;';
+        warning.textContent = 'Engine not running — start the server to chat.';
+        // Insert below the input wrapper in empty state
+        const emptyStateEl = document.getElementById('emptyState');
+        if (emptyStateEl) emptyStateEl.appendChild(warning);
     });

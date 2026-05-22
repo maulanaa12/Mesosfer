@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+    <defs>
+        <!-- Gold metallic gradient with high contrast and luster -->
+        <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#FFE259" />
+            <stop offset="40%" stop-color="#FFC000" />
+            <stop offset="70%" stop-color="#FF9000" />
+            <stop offset="100%" stop-color="#FF7300" />
+        </linearGradient>
+        
+        <!-- Deep shield gradient for carbon/metallic background texture -->
+        <linearGradient id="shield-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#1E1E1E" />
+            <stop offset="100%" stop-color="#0A0A0A" />
+        </linearGradient>
+    </defs>
+
+    <!-- ── Outer Shield Border & Background ── -->
+    <!-- Aggressive sharp hexagon-shield style -->
+    <polygon 
+        points="50,5 85,20 85,65 50,95 15,65 15,20" 
+        fill="url(#shield-grad)" 
+        stroke="url(#gold-grad)" 
+        stroke-width="2.5" 
+        stroke-linejoin="miter"
+    />
+
+    <!-- ── Inner Chevron Elements ("M" Emblem) ── -->
+    <g id="logo-emblem">
+        <!-- Left Wing -->
+        <polygon 
+            points="22,55 35,30 45,42 35,67" 
+            fill="url(#gold-grad)"
+        />
+        
+        <!-- Center Floating Diamond -->
+        <polygon 
+            points="45,42 50,32 55,42 50,52" 
+            fill="url(#gold-grad)"
+        />
+        
+        <!-- Right Wing -->
+        <polygon 
+            points="78,55 65,30 55,42 65,67" 
+            fill="url(#gold-grad)"
+        />
+        
+        <!-- Lower Supersonic Airfoil / Shockwave Blade -->
+        <polygon 
+            points="25,72 50,60 75,72 50,65" 
+            fill="url(#gold-grad)"
+        />
+    </g>
+</svg>

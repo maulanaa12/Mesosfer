@@ -10,6 +10,9 @@
  *   - Ordered lists       1. item
  *   - Headings            # / ## / ###
  *   - Horizontal rules    ---
+ *   - Blockquotes         > text
+ *   - Tables              | col | col |
+ *   - Links               [text](url)
  *   - Plain paragraphs / line breaks
  *
  * Exposes:
@@ -32,7 +35,7 @@ function escapeHtml(str) {
 }
 
 /**
- * Apply inline markdown (bold, italic, inline-code) to an already-escaped
+ * Apply inline markdown (bold, italic, inline-code, links) to an already-escaped
  * HTML string.  Order matters: inline-code first to avoid double-processing.
  */
 function applyInline(html) {
@@ -44,6 +47,11 @@ function applyInline(html) {
     // Italic  *...*  or  _..._  (not inside words)
     html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
     html = html.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '<em>$1</em>');
+    // Links  [text](url) — open in new tab with security attrs
+    html = html.replace(
+        /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
+        '<a class="md-link" href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
     return html;
 }
 
@@ -171,7 +179,7 @@ function renderMarkdown(text) {
 
 /**
  * Render prose (non-code) markdown into `container`.
- * Handles headings, lists, hr, and paragraphs.
+ * Handles headings, lists, blockquotes, tables, hr, and paragraphs.
  */
 function renderProse(text, container) {
     // Normalise line endings
@@ -199,6 +207,61 @@ function renderProse(text, container) {
             el.innerHTML = applyInline(escapeHtml(headingMatch[2]));
             container.appendChild(el);
             i++; continue;
+        }
+
+        // Blockquote — collect consecutive > lines
+        if (/^>\s?/.test(line)) {
+            const bq = document.createElement('blockquote');
+            bq.className = 'md-blockquote';
+            const bqLines = [];
+            while (i < lines.length && /^>\s?/.test(lines[i])) {
+                bqLines.push(lines[i].replace(/^>\s?/, ''));
+                i++;
+            }
+            bq.innerHTML = applyInline(escapeHtml(bqLines.join('\n')));
+            container.appendChild(bq);
+            continue;
+        }
+
+        // Table — detect header row with pipes
+        if (/^\|.+\|/.test(line) && i + 1 < lines.length && /^\|[-| :]+\|/.test(lines[i + 1])) {
+            const tableWrapper = document.createElement('div');
+            tableWrapper.className = 'md-table-wrapper';
+            const table = document.createElement('table');
+            table.className = 'md-table';
+
+            // Header row
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            const headerCells = line.split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+            headerCells.forEach(cell => {
+                const th = document.createElement('th');
+                th.innerHTML = applyInline(escapeHtml(cell.trim()));
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            // Skip separator row
+            i += 2;
+
+            // Body rows
+            const tbody = document.createElement('tbody');
+            while (i < lines.length && /^\|.+\|/.test(lines[i])) {
+                const tr = document.createElement('tr');
+                const cells = lines[i].split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+                cells.forEach(cell => {
+                    const td = document.createElement('td');
+                    td.innerHTML = applyInline(escapeHtml(cell.trim()));
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+                i++;
+            }
+            table.appendChild(tbody);
+            tableWrapper.appendChild(table);
+            container.appendChild(tableWrapper);
+            continue;
         }
 
         // Unordered list
@@ -234,7 +297,7 @@ function renderProse(text, container) {
         while (
             i < lines.length &&
             lines[i].trim() !== '' &&
-            !/^(#{1,3}\s|[-*]\s|\d+\.\s|---+$)/.test(lines[i]) &&
+            !/^(#{1,3}\s|[-*]\s|\d+\.\s|---+$|>\s?|\|)/.test(lines[i]) &&
             !/^```/.test(lines[i])
         ) {
             paraLines.push(lines[i]);
