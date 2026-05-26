@@ -194,14 +194,6 @@ function addMessage(role, content, messageIndex = null) {
         });
     }
 
-    if (role === 'assistant' && messageIndex !== null) {
-        contentDiv.setAttribute('data-message-index', messageIndex);
-        contentDiv.setAttribute('title', 'Click to regenerate this response');
-        contentDiv.addEventListener('click', () => {
-            if (!isGenerating) regenerateMessage(messageIndex);
-        });
-    }
-
     messageDiv.appendChild(contentDiv);
 
     // Timestamp
@@ -267,7 +259,7 @@ function wireCopyResponseButton(messageDiv, fullText) {
     });
 }
 
-// ── Edit / regenerate ──────────────────────────────────────────────────────
+// ── Edit ───────────────────────────────────────────────────────────────────
 function editMessage(messageIndex) {
     if (messageIndex < 0 || messageIndex >= messages.length) return;
     if (messages[messageIndex].role !== 'user') return;
@@ -286,20 +278,6 @@ function editMessage(messageIndex) {
 
     sendButton.disabled = false;
     chatInput.focus();
-}
-
-async function regenerateMessage(messageIndex) {
-    if (messageIndex < 0 || messageIndex >= messages.length) return;
-    if (messages[messageIndex].role !== 'assistant') return;
-
-    messages = messages.slice(0, messageIndex);
-
-    const allMessages = chatWrapper.querySelectorAll('.message');
-    for (let i = messageIndex; i < allMessages.length; i++) {
-        allMessages[i].remove();
-    }
-
-    await generateAssistantResponse();
 }
 
 // ── Generation ─────────────────────────────────────────────────────────────
@@ -370,10 +348,6 @@ async function generateAssistantResponse() {
         messages.push({ role: 'assistant', content: fullResponse });
 
         assistantContent.setAttribute('data-message-index', assistantMessageIndex);
-        assistantContent.setAttribute('title', 'Click to regenerate this response');
-        assistantContent.addEventListener('click', () => {
-            if (!isGenerating) regenerateMessage(assistantMessageIndex);
-        });
 
         // Wire thumb buttons and copy button
         const messageDiv = assistantContent.closest('.message.assistant');
