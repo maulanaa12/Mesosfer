@@ -380,9 +380,7 @@ def sft_data_generator_bos_bestfit(split, buffer_size=100):
         # Update progress tracking (based on consumed, not cursor, to account for buffering)
         if split == "train":
             current_epoch = epoch
-            if args.num_iterations > 0:
-                approx_progress = it / args.num_iterations
-            else:
+            if args.num_iterations <= 0:
                 approx_progress = consumed / dataset_size
             # Trigger last_step when we've consumed the dataset only for epoch-based
             # runs. If --num-iterations is set, keep cycling through the dataset so
@@ -573,7 +571,8 @@ while True:
             nan_detected = True
             model.zero_grad(set_to_none=True)
             x, y = next(train_loader)
-            progress = max(progress, approx_progress)
+            if args.num_iterations <= 0:
+                progress = max(progress, approx_progress)
             break
         loss = loss / grad_accum_steps # each .backward() is a grad sum => normalize loss here
         if scaler is not None:
@@ -581,7 +580,8 @@ while True:
         else:
             loss.backward()
         x, y = next(train_loader) # prefetch the next batch while the GPU is busy with forward/backward
-        progress = max(progress, approx_progress) # only increase progress monotonically
+        if args.num_iterations <= 0:
+            progress = max(progress, approx_progress) # only increase progress monotonically
 
     if nan_detected:
         print0(f"WARNING: NaN/Inf loss at step {step}, skipping step")
@@ -589,6 +589,8 @@ while True:
         continue
 
     # step the optimizer
+    if args.num_iterations > 0:
+        progress = min(1.0, step / args.num_iterations)
     lrm = get_lr_multiplier(progress)
     muon_momentum = get_muon_momentum(step)
     for group in optimizer.param_groups:
@@ -614,6 +616,8 @@ while True:
 
     # State
     step += 1
+    if args.num_iterations > 0:
+        progress = min(1.0, step / args.num_iterations)
 
     # logging
     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss.item() # EMA the training loss
