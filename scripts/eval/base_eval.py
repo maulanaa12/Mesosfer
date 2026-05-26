@@ -255,6 +255,36 @@ def evaluate_core_jsonl_task(model, tokenizer, device, cfg, data_path, max_per_t
     return accuracy, centered
 
 
+def print_final_eval_summary(core_results=None, cybersec_results=None, coding_results=None, bpb_results=None):
+    """Print a compact terminal summary after all eval sections finish."""
+    print0("\n" + "="*80)
+    print0("Final Evaluation Summary")
+    print0("="*80)
+
+    if core_results:
+        print0(f"CORE metric: {core_results['core_metric']:.4f}")
+        for label, acc in core_results["results"].items():
+            centered = core_results["centered_results"][label]
+            print0(f"  {label:<35} accuracy: {acc:.4f} | centered: {centered:.4f}")
+
+    if cybersec_results:
+        cybersec_metric = sum(v['centered'] for v in cybersec_results.values()) / len(cybersec_results)
+        print0(f"\nCybersec domain metric: {cybersec_metric:.4f}")
+        for label, result in cybersec_results.items():
+            print0(f"  {label:<35} accuracy: {result['accuracy']:.4f} | centered: {result['centered']:.4f}")
+
+    if coding_results:
+        coding_metric = sum(v['centered'] for v in coding_results.values()) / len(coding_results)
+        print0(f"\nCoding domain metric: {coding_metric:.4f}")
+        for label, result in coding_results.items():
+            print0(f"  {label:<35} accuracy: {result['accuracy']:.4f} | centered: {result['centered']:.4f}")
+
+    if bpb_results:
+        print0("\nBPB:")
+        for split_name, bpb in bpb_results.items():
+            print0(f"  {split_name:<35} bpb: {bpb:.6f}")
+
+
 def place_eval_bundle(file_path):
     """Unzip eval_bundle.zip and place it in the base directory."""
     base_dir = get_base_dir()
@@ -646,6 +676,13 @@ def main():
         report_data.append({f"sample {i}": s for i, s in enumerate(samples)})
     if unconditioned_samples:
         report_data.append({f"unconditioned {i}": s for i, s in enumerate(unconditioned_samples)})
+
+    print_final_eval_summary(
+        core_results=core_results,
+        cybersec_results=cybersec_results,
+        coding_results=coding_results,
+        bpb_results=bpb_results,
+    )
 
     get_report().log(section="Base model evaluation", data=report_data)
 
