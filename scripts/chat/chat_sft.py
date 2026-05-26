@@ -65,6 +65,9 @@ parser.add_argument("--eval-tokens", type=int, default=40*524288, help="number o
 parser.add_argument("--chatcore-every", type=int, default=200, help="evaluate ChatCORE metric every N steps (-1 = disable)")
 parser.add_argument("--chatcore-max-cat", type=int, default=-1, help="max problems per categorical task for ChatCORE")
 parser.add_argument("--chatcore-max-sample", type=int, default=24, help="max problems per generative task for ChatCORE")
+parser.add_argument("--chatcore-tasks", type=str, default=None,
+                    help="pipe-separated ChatCORE tasks to run (default: all). "
+                         "Use ARC-Easy|ARC-Challenge|MMLU for ROCm-safe categorical-only eval.")
 # Data mixture
 parser.add_argument("--mmlu-epochs", type=int, default=3, help="number of epochs of MMLU in training mixture (teaches Multiple Choice)")
 parser.add_argument("--gsm8k-epochs", type=int, default=4, help="number of epochs of GSM8K in training mixture (teaches Math and Tool Use)")
@@ -451,12 +454,18 @@ while True:
     if args.chatcore_every > 0 and (last_step or (step > 0 and step % args.chatcore_every == 0)):
         model.eval()
         engine = Engine(orig_model, tokenizer)
-        all_tasks = ['ARC-Easy', 'ARC-Challenge', 'MMLU', 'GSM8K', 'HumanEval', 'SpellingBee']
+        default_chatcore_tasks = ['ARC-Easy', 'ARC-Challenge', 'MMLU', 'GSM8K', 'HumanEval', 'SpellingBee']
+        all_tasks = default_chatcore_tasks if args.chatcore_tasks is None else [
+            task.strip() for task in args.chatcore_tasks.split('|') if task.strip()
+        ]
         categorical_tasks = {'ARC-Easy', 'ARC-Challenge', 'MMLU'}
         baseline_accuracies = {
             'ARC-Easy': 0.25, 'ARC-Challenge': 0.25, 'MMLU': 0.25,
             'GSM8K': 0.0, 'HumanEval': 0.0, 'SpellingBee': 0.0,
         }
+        unknown_tasks = set(all_tasks) - set(default_chatcore_tasks)
+        if unknown_tasks:
+            raise ValueError(f"Unknown ChatCORE task(s): {sorted(unknown_tasks)}")
         task_results = {}
         for task_name in all_tasks:
             limit = args.chatcore_max_cat if task_name in categorical_tasks else args.chatcore_max_sample
@@ -469,7 +478,8 @@ while True:
         def centered_mean(tasks):
             return sum((task_results[t] - baseline_accuracies[t]) / (1.0 - baseline_accuracies[t]) for t in tasks) / len(tasks)
         chatcore = centered_mean(all_tasks)
-        chatcore_cat = centered_mean(categorical_tasks)
+        evaluated_categorical_tasks = [task for task in all_tasks if task in categorical_tasks]
+        chatcore_cat = centered_mean(evaluated_categorical_tasks) if evaluated_categorical_tasks else 0.0
         if master_process:
             tqdm.write(f"Step {step:05d} | ChatCORE: {chatcore:.4f} | ChatCORE_cat: {chatcore_cat:.4f}")
         wandb_run.log({
