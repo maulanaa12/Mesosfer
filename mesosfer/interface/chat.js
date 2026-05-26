@@ -323,7 +323,6 @@ async function generateAssistantResponse() {
                 messages,
                 temperature: currentTemperature,
                 top_k: currentTopK,
-                max_tokens: 512,
             }),
         });
 
