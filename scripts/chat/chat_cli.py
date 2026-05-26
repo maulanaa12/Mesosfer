@@ -220,13 +220,15 @@ while True:
     for token_column, token_masks in engine.generate(conversation_tokens, **generate_kwargs):
         token = token_column[0] # pop the batch dimension (num_samples=1)
         response_tokens.append(token)
+        if token == assistant_end:
+            break
         token_text = tokenizer.decode([token])
         print(token_text, end="", flush=True)
     print()
     print_footer()
     # we have to ensure that the assistant end token is the last token
     # so even if generation ends due to max tokens, we have to append it to the end
-    if response_tokens[-1] != assistant_end:
+    if not response_tokens or response_tokens[-1] != assistant_end:
         response_tokens.append(assistant_end)
     conversation_tokens.extend(response_tokens)
 
