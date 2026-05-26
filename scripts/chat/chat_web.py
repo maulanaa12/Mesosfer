@@ -8,10 +8,10 @@ a full copy of the model, and incoming requests are distributed to available wor
 Launch examples:
 
 - single available GPU (default)
-python -m scripts.chat_web
+python -m scripts.chat.chat_web
 
 - 4 GPUs
-python -m scripts.chat_web --num-gpus 4
+python -m scripts.chat.chat_web --num-gpus 4
 
 To chat, open the URL printed in the console. (If on cloud box, make sure to use public IP)
 
@@ -83,8 +83,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-    device_type = autodetect_device_type() if args.device_type == "" else args.device_type
-    ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
+device_type = autodetect_device_type() if args.device_type == "" else args.device_type
+ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
 
 @dataclass
 class Worker:
@@ -122,8 +122,8 @@ class WorkerPool:
                 device = torch.device(device_type) # e.g. cpu|mps
                 print(f"Loading model on {device_type}...")
 
-                model, tokenizer, _ = load_model(source, device, phase="eval", model_tag=model_tag, step=step)
-                engine = Engine(model, tokenizer)
+            model, tokenizer, _ = load_model(source, device, phase="eval", model_tag=model_tag, step=step)
+            engine = Engine(model, tokenizer)
             worker = Worker(
                 gpu_id=gpu_id,
                 device=device,
