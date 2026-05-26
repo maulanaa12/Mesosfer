@@ -372,10 +372,10 @@ def sft_data_generator_bos_bestfit(split, buffer_size=100):
             rows.append(row[:row_capacity])
             mask_rows.append(mask_row[:row_capacity])
 
-        # Stopping condition to respect num_iterations, if given
+        # Dataloader-local iteration counter. This counts micro-batches, not
+        # optimizer steps, so --num-iterations is handled in the outer training
+        # loop where `step` counts optimizer updates.
         it += 1
-        if 0 < args.num_iterations <= it and split == "train":
-            last_step = True
 
         # Update progress tracking (based on consumed, not cursor, to account for buffering)
         if split == "train":
@@ -457,6 +457,9 @@ pbar = tqdm(
 )
 
 while True:
+    if args.num_iterations > 0 and step >= args.num_iterations:
+        last_step = True
+
     flops_so_far = num_flops_per_token * args.total_batch_size * step
 
     # Synchronize last_step across all ranks to avoid hangs in the distributed setting

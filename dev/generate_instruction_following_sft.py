@@ -338,6 +338,91 @@ SAFE_REFUSAL_VARIANTS = [
     "I cannot assist with building a virus or malware behavior. I can help you create benign training material, such as synthetic logs, a static analysis checklist, or a defensive incident response playbook.",
 ]
 
+SYNTHETIC_LOG_TASKS = [
+    (
+        "messy ssh auth lines, can you summarize as json only?\n"
+        "May 27 10:14:02 app01 sshd[2144]: Failed password for invalid user admin from 203.0.113.24 port 51102 ssh2\n"
+        "May 27 10:14:09 app01 sshd[2147]: Failed password for root from 203.0.113.24 port 51108 ssh2\n"
+        "May 27 10:14:18 app01 sshd[2151]: Accepted publickey for deploy from 198.51.100.17 port 43022 ssh2",
+        json.dumps(
+            {
+                "event_type": "possible_ssh_bruteforce",
+                "suspicious_source_ip": "203.0.113.24",
+                "successful_login_seen": True,
+                "successful_login_user": "deploy",
+                "recommended_action": "preserve auth logs, verify whether the successful login was expected, and check for post-login activity",
+            },
+            ensure_ascii=False,
+        ),
+    ),
+    (
+        "turn this noisy nginx log into a tiny markdown table, dont invent extra fields\n"
+        "203.0.113.50 - - [27/May/2026:10:22:11 +0000] \"GET /login HTTP/1.1\" 200 1842\n"
+        "203.0.113.50 - - [27/May/2026:10:22:15 +0000] \"POST /login HTTP/1.1\" 401 933\n"
+        "203.0.113.50 - - [27/May/2026:10:22:19 +0000] \"POST /login HTTP/1.1\" 401 933",
+        "| source_ip | method | path | status |\n|---|---:|---|---:|\n| 203.0.113.50 | GET | /login | 200 |\n| 203.0.113.50 | POST | /login | 401 |\n| 203.0.113.50 | POST | /login | 401 |",
+    ),
+    (
+        "quick triage bullets for this fake dns log, 3 bullets max\n"
+        "2026-05-27T11:02:10Z host=wkst-22 query=updates.example.com type=A rcode=NOERROR\n"
+        "2026-05-27T11:02:12Z host=wkst-22 query=x9a2k3.example-c2.invalid type=TXT rcode=NOERROR\n"
+        "2026-05-27T11:02:14Z host=wkst-22 query=x9a2k3.example-c2.invalid type=TXT rcode=NOERROR",
+        "- Treat the repeated TXT queries to `example-c2.invalid` as suspicious training indicators.\n- Preserve DNS logs and identify the process or host activity that generated the queries.\n- Isolate the workstation if other evidence suggests malware activity.",
+    ),
+    (
+        "i pasted a mixed log, return yaml only with risk and next_steps\n"
+        "FW allow tcp 10.0.4.12:51544 -> 198.51.100.77:443 bytes=9821\n"
+        "EDR alert host=acct-07 process=powershell.exe parent=winword.exe action=network_connect\n"
+        "AUTH user=jane result=success src=198.51.100.77 mfa=passed",
+        "risk: suspicious_office_macro_network_activity\nnext_steps:\n  - preserve EDR, firewall, and authentication logs\n  - confirm whether the document and PowerShell activity were expected\n  - review the successful login and MFA context\n  - isolate the host if malicious behavior is confirmed",
+    ),
+]
+
+STRUCTURED_OUTPUT_CASES = [
+    (
+        "Return YAML only. Make a tiny incident checklist for suspected SSH brute force.",
+        "incident_type: suspected_ssh_bruteforce\nchecklist:\n  - preserve authentication logs\n  - count failed attempts by source IP and username\n  - check for successful logins after the failures\n  - apply temporary blocking or rate limiting if policy allows",
+    ),
+    (
+        "Return JSON only. Create a safe schema for a phishing report.",
+        json.dumps(
+            {
+                "report_type": "phishing",
+                "fields": ["sender", "subject", "received_time", "urls", "attachment_hashes", "reported_by"],
+                "first_action": "preserve the email and avoid opening attachments",
+            },
+            ensure_ascii=False,
+        ),
+    ),
+    (
+        "Make a compact markdown table comparing log source types: auth, dns, proxy.",
+        "| log_source | useful_for | example_signal |\n|---|---|---|\n| auth | account access review | failed and successful logins |\n| dns | suspicious domain lookup review | repeated unusual TXT queries |\n| proxy | web activity review | downloads from rare domains |",
+    ),
+    (
+        "Return only a TOML-like config for safe lab limits, not real attack config.",
+        "[lab_limits]\nnetwork = \"local_only\"\nreal_targets = false\nmalware_code = false\nsynthetic_logs = true\nallowed_goal = \"defensive_training\"",
+    ),
+]
+
+SAFE_CODE_CASES = [
+    (
+        "write safe python to count failed ssh login lines from a provided string only. no network, no files.",
+        "```python\nimport re\n\nFAILED_SSH = re.compile(r\"Failed password .* from (?P<ip>\\d+\\.\\d+\\.\\d+\\.\\d+)\")\n\ndef count_failed_ssh(log_text):\n    counts = {}\n    for line in log_text.splitlines():\n        match = FAILED_SSH.search(line)\n        if match:\n            ip = match.group(\"ip\")\n            counts[ip] = counts.get(ip, 0) + 1\n    return counts\n```\nThis only parses a provided string and does not access real systems.",
+    ),
+    (
+        "safe code pls: parse a json phishing report and print missing fields. no external calls.",
+        "```python\nREQUIRED_FIELDS = {\"sender\", \"subject\", \"received_time\", \"urls\", \"attachment_hashes\"}\n\ndef missing_phishing_fields(report):\n    return sorted(field for field in REQUIRED_FIELDS if field not in report)\n\nsample = {\"sender\": \"training@example.com\", \"subject\": \"Invoice\"}\nprint(missing_phishing_fields(sample))\n```\nThis is a local validation helper for defensive triage data.",
+    ),
+    (
+        "give javascript that safely escapes text before showing a synthetic log in html",
+        "```javascript\nfunction escapeText(value) {\n  return String(value)\n    .replaceAll('&', '&amp;')\n    .replaceAll('<', '&lt;')\n    .replaceAll('>', '&gt;')\n    .replaceAll('\"', '&quot;')\n    .replaceAll(\"'\", '&#39;');\n}\n\nconst safeHtml = `<pre>${escapeText(syntheticLogText)}</pre>`;\n```\nUse this for displaying text, not for granting trust to unverified data.",
+    ),
+    (
+        "python example to validate password storage settings, defensive only",
+        "```python\ndef review_password_storage(config):\n    issues = []\n    if config.get(\"algorithm\") not in {\"argon2id\", \"bcrypt\", \"scrypt\"}:\n        issues.append(\"Use a slow password hashing algorithm.\")\n    if not config.get(\"unique_salt_per_password\"):\n        issues.append(\"Use a unique salt per password.\")\n    if config.get(\"stores_plaintext\"):\n        issues.append(\"Never store plaintext passwords.\")\n    return issues\n```\nThis checks configuration data and does not handle real credentials.",
+    ),
+]
+
 
 def add(rows: list, user: str, assistant: str) -> None:
     rows.append([
@@ -565,6 +650,27 @@ def build_rows() -> list:
             f"Instead of giving code, respond safely to this request: {prompt}",
             answer,
         )
+
+    noisy_format_prefixes = [
+        "",
+        "for class, ",
+        "dont overthink it, ",
+        "i need this for parser testing, ",
+        "make it realistic but synthetic, ",
+    ]
+    for prompt, answer in SYNTHETIC_LOG_TASKS:
+        for prefix in noisy_format_prefixes:
+            add(rows, prefix + prompt, answer)
+
+    for prompt, answer in STRUCTURED_OUTPUT_CASES:
+        add(rows, prompt, answer)
+        add(rows, "no intro, " + prompt[0].lower() + prompt[1:], answer)
+        add(rows, "for a junior analyst: " + prompt, answer)
+
+    for prompt, answer in SAFE_CODE_CASES:
+        add(rows, prompt, answer)
+        add(rows, "defensive lab only: " + prompt, answer)
+        add(rows, "keep it small and safe: " + prompt, answer)
 
     rng = random.Random(1337)
     rng.shuffle(rows)
