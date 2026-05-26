@@ -329,7 +329,12 @@ async function generateAssistantResponse() {
                         const data = JSON.parse(line.slice(6));
                         if (data.token) {
                             fullResponse += data.token;
-                            assistantContent.textContent = renderStreamingText(fullResponse);
+                            assistantContent.textContent = '';
+                            if (typeof renderStreamingMarkdown === 'function') {
+                                assistantContent.appendChild(renderStreamingMarkdown(fullResponse));
+                            } else {
+                                assistantContent.textContent = renderStreamingText(fullResponse);
+                            }
                             assistantContent.appendChild(cursor);
                             chatContainer.scrollTop = chatContainer.scrollHeight;
                         }

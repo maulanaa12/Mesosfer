@@ -17,7 +17,7 @@
  *
  * Exposes:
  *   renderMarkdown(text)  → HTMLElement  (a <div class="md-body">)
- *   renderStreamingText(text) → string  (plain text during streaming, no HTML)
+ *   renderStreamingMarkdown(text) → HTMLElement  (streaming-safe partial render)
  */
 
 'use strict';
@@ -53,6 +53,17 @@ function applyInline(html) {
         '<a class="md-link" href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
     );
     return html;
+}
+
+/**
+ * Models sometimes emit fences inline, e.g. "Here is code: ```python import x".
+ * Normalize that into standard fenced markdown so the UI can lift it into a
+ * code container while the answer is still streaming.
+ */
+function normalizeCodeFences(text) {
+    return text
+        .replace(/([^\n])```/g, '$1\n```')
+        .replace(/```([\w.+-]+)[ \t]+(?=\S)/g, '```$1\n');
 }
 
 // ── Code block builder ─────────────────────────────────────────────────────
@@ -164,9 +175,10 @@ function buildCodeBlock(lang, code) {
 function renderMarkdown(text) {
     const root = document.createElement('div');
     root.className = 'md-body';
+    text = normalizeCodeFences(text);
 
     // Split on fenced code blocks first, preserving them as separate segments
-    const CODE_FENCE = /^```([\w.+-]*)\n([\s\S]*?)^```/gm;
+    const CODE_FENCE = /```([\w.+-]*)[ \t]*\n([\s\S]*?)```/g;
     let lastIndex = 0;
     let match;
 
@@ -183,9 +195,21 @@ function renderMarkdown(text) {
         lastIndex = match.index + match[0].length;
     }
 
-    // Render remaining prose after the last code block
+    // Render remaining prose after the last closed code block. If a fence is
+    // currently open, render it as a live code block instead of inline text.
     const remaining = text.slice(lastIndex);
-    if (remaining) renderProse(remaining, root);
+    if (remaining) {
+        const openFence = remaining.match(/```([\w.+-]*)[ \t]*\n?([\s\S]*)$/);
+        if (openFence && openFence.index !== undefined) {
+            const prose = remaining.slice(0, openFence.index);
+            if (prose) renderProse(prose, root);
+            const lang = openFence[1].trim().toLowerCase();
+            const code = openFence[2] || '';
+            root.appendChild(buildCodeBlock(lang, code));
+        } else {
+            renderProse(remaining, root);
+        }
+    }
 
     return root;
 }
@@ -328,12 +352,16 @@ function renderProse(text, container) {
 // ── Streaming helper ───────────────────────────────────────────────────────
 
 /**
- * During streaming we show plain text (no HTML injection risk, fast).
- * Call renderMarkdown() once streaming is complete to upgrade to rich HTML.
+ * During streaming, render partial markdown so fenced code immediately appears
+ * inside the terminal-style container instead of as raw inline backticks.
  *
  * @param {string} text
- * @returns {string}  plain text, safe to assign to element.textContent
+ * @returns {HTMLElement}
  */
+function renderStreamingMarkdown(text) {
+    return renderMarkdown(text);
+}
+
 function renderStreamingText(text) {
     return text;
 }
