@@ -384,8 +384,10 @@ def sft_data_generator_bos_bestfit(split, buffer_size=100):
                 approx_progress = it / args.num_iterations
             else:
                 approx_progress = consumed / dataset_size
-            # Trigger last_step when we've consumed enough (instead of when cursor wraps)
-            if consumed >= dataset_size:
+            # Trigger last_step when we've consumed the dataset only for epoch-based
+            # runs. If --num-iterations is set, keep cycling through the dataset so
+            # small polish datasets can train for the requested number of steps.
+            if args.num_iterations <= 0 and consumed >= dataset_size:
                 last_step = True
 
         # Build tensors
