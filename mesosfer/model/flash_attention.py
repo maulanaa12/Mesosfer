@@ -15,6 +15,7 @@ Usage (drop-in replacement for FA3):
 """
 from types import SimpleNamespace
 
+import os
 import torch
 import torch.nn.functional as F
 
@@ -86,8 +87,11 @@ HAS_FA3 = _fa3 is not None
 _fa2 = _load_flash_attention_2()
 HAS_FA2 = _fa2 is not None
 
-# Override for testing: set to 'fa3', 'fa2', 'sdpa', or None (auto)
-_override_impl = None
+# Override for testing/runtime: set MESOSFER_ATTENTION_BACKEND to fa3, fa2, sdpa, or auto.
+_env_override = os.environ.get("MESOSFER_ATTENTION_BACKEND") or os.environ.get("mesosfer_ATTENTION_BACKEND")
+_override_impl = None if _env_override in (None, "", "auto") else _env_override.lower()
+if _override_impl is not None and _override_impl not in {"fa3", "fa2", "sdpa"}:
+    raise ValueError("MESOSFER_ATTENTION_BACKEND must be one of: auto, fa3, fa2, sdpa")
 
 
 def _flash_attention_dtype_supported(backend):
