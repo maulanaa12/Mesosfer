@@ -92,6 +92,8 @@ parser.add_argument("--disable-cybersec-sft", action="store_true", help="disable
 parser.add_argument("--rules-epochs", type=int, default=4, help="epochs of rules.jsonl (behavioral/safety/format rules)")
 parser.add_argument("--instruction-following-epochs", type=int, default=4, help="epochs of instruction_following_conversations_en.jsonl (format/count/conciseness polish)")
 parser.add_argument("--instruction-polish-only", action="store_true", help="train only on local identity/rules/instruction-following polish data")
+parser.add_argument("--safety-artifact-epochs", type=int, default=0, help="epochs of safety_artifact_conversations_en.jsonl (artifact-vs-attack boundary)")
+parser.add_argument("--safety-artifact-only", action="store_true", help="train only on local identity/rules/safety-artifact boundary data")
 parser.add_argument("--save-every", type=int, default=-1, help="save intermediate checkpoint every N steps (-1 = only at end)")
 args = parser.parse_args()
 user_config = vars(args).copy()
@@ -209,11 +211,13 @@ identity_conversations_filepath = os.path.join(sft_dir, "identity_conversations.
 identity_conversations_en_filepath = os.path.join(sft_dir, "identity_conversations_en.jsonl")
 rules_filepath = os.path.join(sft_dir, "rules.jsonl")
 instruction_following_filepath = os.path.join(sft_dir, "instruction_following_conversations_en.jsonl")
-if args.instruction_polish_only:
+safety_artifact_filepath = os.path.join(sft_dir, "safety_artifact_conversations_en.jsonl")
+if args.instruction_polish_only or args.safety_artifact_only:
     train_tasks = [
         CustomJSON(filepath=identity_conversations_filepath),
     ]
-    print0("Instruction polish mode: skipping broad SmolTalk/MMLU/GSM8K/spelling training tasks")
+    mode_name = "Safety artifact" if args.safety_artifact_only else "Instruction polish"
+    print0(f"{mode_name} mode: skipping broad SmolTalk/MMLU/GSM8K/spelling training tasks")
 else:
     train_tasks = [
         SmolTalk(split="train"), # 460K rows of general conversations
@@ -242,17 +246,26 @@ if args.rules_epochs > 0 and os.path.exists(rules_filepath):
 elif args.rules_epochs > 0:
     print0(f"WARNING: rules.jsonl not found at {rules_filepath}, skipping")
 
+# Add safety artifact boundary data (synthetic artifacts allowed, attack automation refused)
+if args.safety_artifact_epochs > 0 and os.path.exists(safety_artifact_filepath):
+    safety_artifact_tasks = [CustomJSON(filepath=safety_artifact_filepath) for _ in range(args.safety_artifact_epochs)]
+    train_tasks.extend(safety_artifact_tasks)
+    print0(f"Added safety_artifact_conversations_en.jsonl: {args.safety_artifact_epochs} epoch(s) from {safety_artifact_filepath}")
+elif args.safety_artifact_epochs > 0:
+    print0(f"WARNING: safety_artifact_conversations_en.jsonl not found at {safety_artifact_filepath}, skipping")
+
 # Add instruction-following polish data (exact counts, no-code constraints, JSON-only, concise answers)
-if args.instruction_following_epochs > 0 and os.path.exists(instruction_following_filepath):
+if not args.safety_artifact_only and args.instruction_following_epochs > 0 and os.path.exists(instruction_following_filepath):
     instruction_tasks = [CustomJSON(filepath=instruction_following_filepath) for _ in range(args.instruction_following_epochs)]
     train_tasks.extend(instruction_tasks)
     print0(f"Added instruction_following_conversations_en.jsonl: {args.instruction_following_epochs} epoch(s) from {instruction_following_filepath}")
-elif args.instruction_following_epochs > 0:
+elif not args.safety_artifact_only and args.instruction_following_epochs > 0:
     print0(f"WARNING: instruction_following_conversations_en.jsonl not found at {instruction_following_filepath}, skipping")
 
 # Add cybersecurity SFT mixture (preserves cybersec capability from pretraining)
-if args.instruction_polish_only:
-    print0("Instruction polish mode: skipping broad cybersec SFT mixture")
+if args.instruction_polish_only or args.safety_artifact_only:
+    mode_name = "Safety artifact" if args.safety_artifact_only else "Instruction polish"
+    print0(f"{mode_name} mode: skipping broad cybersec SFT mixture")
 elif not args.disable_cybersec_sft:
     cybersec_tasks = build_cybersec_sft_tasks(
         cyber_defensive_epochs=args.cyber_defensive_epochs,
