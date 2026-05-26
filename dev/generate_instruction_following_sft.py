@@ -213,6 +213,26 @@ SAFE_CODE_CASES = [
 ]
 
 
+CODE_BLOCK_REINFORCEMENT_CASES = [
+    (
+        "Make me a calculator using the C++ programming language.",
+        "```cpp\n#include <iostream>\n\nint main() {\n    double left, right;\n    char op;\n\n    std::cout << \"Enter expression like 4 + 2: \";\n    std::cin >> left >> op >> right;\n\n    if (op == '+') std::cout << left + right << '\\n';\n    else if (op == '-') std::cout << left - right << '\\n';\n    else if (op == '*') std::cout << left * right << '\\n';\n    else if (op == '/' && right != 0) std::cout << left / right << '\\n';\n    else std::cout << \"Invalid operation\\n\";\n\n    return 0;\n}\n```",
+    ),
+    (
+        "Give me a simple calculator in C++. Use a code block.",
+        "```cpp\n#include <iostream>\n\nint main() {\n    double a, b;\n    char op;\n    std::cin >> a >> op >> b;\n\n    switch (op) {\n        case '+': std::cout << a + b << '\\n'; break;\n        case '-': std::cout << a - b << '\\n'; break;\n        case '*': std::cout << a * b << '\\n'; break;\n        case '/':\n            if (b == 0) std::cout << \"Cannot divide by zero\\n\";\n            else std::cout << a / b << '\\n';\n            break;\n        default: std::cout << \"Unknown operator\\n\";\n    }\n}\n```",
+    ),
+    (
+        "Write a Python calculator. Put the code in a fenced code block.",
+        "```python\ndef calculate(left, operator, right):\n    if operator == '+':\n        return left + right\n    if operator == '-':\n        return left - right\n    if operator == '*':\n        return left * right\n    if operator == '/':\n        if right == 0:\n            raise ValueError('division by zero')\n        return left / right\n    raise ValueError('unknown operator')\n```",
+    ),
+    (
+        "Create a tiny JavaScript todo list. Use a code block only.",
+        "```html\n<input id=\"task\" placeholder=\"New task\">\n<button onclick=\"addTask()\">Add</button>\n<ul id=\"tasks\"></ul>\n\n<script>\nfunction addTask() {\n  const input = document.getElementById('task');\n  const item = document.createElement('li');\n  item.textContent = input.value;\n  document.getElementById('tasks').appendChild(item);\n  input.value = '';\n}\n</script>\n```",
+    ),
+]
+
+
 NO_CODE_CASES = [
     (
         "Do not write code. Explain why hardcoded passwords are bad in two short sentences.",
@@ -229,6 +249,45 @@ NO_CODE_CASES = [
     (
         "Answer in exactly 4 short sentences. Do not write code. Compare authentication and authorization with one example each.",
         "Authentication verifies who a user is. Authorization decides what that user may access. Logging in with a password is authentication. Letting an admin delete users is authorization.",
+    ),
+]
+
+EXACT_SENTENCE_REINFORCEMENT_CASES = [
+    (
+        "Answer in exactly 4 short sentences. Do not write code. What is the difference between authentication and authorization? Give one simple real-world example for each.",
+        "Authentication verifies who a user is. Authorization decides what that user can access. Logging in with a password is authentication. Allowing an admin to delete users is authorization.",
+    ),
+    (
+        "Answer in exactly four short sentences. No code. Compare authentication and authorization with one example each.",
+        "Authentication proves identity. Authorization grants permissions. A password login is authentication. Admin-only access is authorization.",
+    ),
+    (
+        "Exactly 4 short sentences, no code: authentication vs authorization, with examples.",
+        "Authentication checks identity. Authorization checks permission. Entering a password is authentication. Opening an admin panel is authorization.",
+    ),
+    (
+        "Answer in exactly 4 short sentences. Do not write code. What is authentication?",
+        "Authentication checks identity. It confirms that a user, device, or service is who it claims to be. A password login is one example. It happens before access is granted.",
+    ),
+    (
+        "Answer in exactly 3 short sentences. Do not write code. What is authorization?",
+        "Authorization checks permission. It decides what an authenticated user can access. For example, an admin may delete users while a normal user cannot.",
+    ),
+    (
+        "Use exactly two bullet points. Compare authentication and authorization.",
+        "- Authentication: verifies identity, such as logging in with a password.\n- Authorization: decides allowed actions, such as letting an admin delete users.",
+    ),
+    (
+        "Return JSON only. Compare authentication and authorization.",
+        json.dumps(
+            {
+                "authentication": "verifies identity",
+                "authorization": "controls permissions",
+                "authentication_example": "logging in with a password",
+                "authorization_example": "allowing an admin to delete users",
+            },
+            ensure_ascii=False,
+        ),
     ),
 ]
 
@@ -465,9 +524,18 @@ def build_rows(include_hf_code: bool, codefeedback_max: int, python_max: int, sc
         add(rows, prompt, answer)
         add(rows, "keep it small and safe: " + prompt, answer)
 
+    for prompt, answer in CODE_BLOCK_REINFORCEMENT_CASES:
+        add(rows, prompt, answer)
+        add(rows, "Please format the answer cleanly: " + prompt[0].lower() + prompt[1:], answer)
+        add(rows, "No inline code, use fenced code block: " + prompt[0].lower() + prompt[1:], answer)
+
     for prompt, answer in NO_CODE_CASES:
         add(rows, prompt, answer)
         add(rows, "short answer only: " + prompt[0].lower() + prompt[1:], answer)
+
+    for prompt, answer in EXACT_SENTENCE_REINFORCEMENT_CASES:
+        add(rows, prompt, answer)
+        add(rows, "Follow the format carefully: " + prompt[0].lower() + prompt[1:], answer)
 
     for prompt, answer in SAFE_ARTIFACT_CASES:
         add(rows, prompt, answer)
