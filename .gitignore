@@ -21,6 +21,7 @@ superpowers/
 superpowers/specs/
 .kiro/
 .vscode/
+.agents/
 
 # RLHF collected feedback (runtime data, not for version control)
 data/rlhf/feedback.jsonl

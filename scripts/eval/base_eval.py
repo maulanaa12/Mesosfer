@@ -91,6 +91,64 @@ def get_hf_token_bytes(tokenizer, device="cpu"):
 
 EVAL_BUNDLE_URL = "https://karpathy-public.s3.us-west-2.amazonaws.com/eval_bundle.zip"
 
+HF_MMLU_DATASET = "cais/mmlu"
+
+
+def _mmlu_answer_to_index(answer):
+    """Normalize MMLU answer values from HF datasets into a 0-based index."""
+    if isinstance(answer, int):
+        return answer
+    if isinstance(answer, str):
+        answer = answer.strip()
+        if answer.isdigit():
+            return int(answer)
+        if len(answer) == 1 and answer.upper() in "ABCD":
+            return ord(answer.upper()) - ord("A")
+    raise ValueError(f"Unsupported MMLU answer value: {answer!r}")
+
+
+def _convert_hf_mmlu_split_to_core_jsonl(dataset, output_path):
+    """Write a HF MMLU split in CORE multiple-choice JSONL format."""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    tmp_path = output_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        for row in dataset:
+            item = {
+                "query": row["question"],
+                "choices": list(row["choices"]),
+                "gold": _mmlu_answer_to_index(row["answer"]),
+            }
+            if len(item["choices"]) != 4:
+                raise ValueError(f"Expected 4 MMLU choices, got {len(item['choices'])}")
+            if item["gold"] < 0 or item["gold"] >= len(item["choices"]):
+                raise ValueError(f"MMLU gold index out of range: {item['gold']}")
+            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+    os.replace(tmp_path, output_path)
+
+
+def prepare_hf_mmlu_core_jsonl(subject, output_path, split="test"):
+    """
+    Materialize a HuggingFace MMLU subject into the local CORE eval format.
+
+    Returns (ok, message). Missing/unavailable HF subjects are non-fatal because
+    cyber eval is an optional extension on top of the default CORE bundle.
+    """
+    if os.path.exists(output_path):
+        return True, "cached"
+
+    try:
+        from datasets import load_dataset
+        dataset = load_dataset(HF_MMLU_DATASET, subject, split=split)
+    except Exception as exc:
+        return False, f"HF subset unavailable ({subject}): {exc}"
+
+    try:
+        _convert_hf_mmlu_split_to_core_jsonl(dataset, output_path)
+    except Exception as exc:
+        return False, f"failed to convert HF subset ({subject}): {exc}"
+
+    return True, f"created from {HF_MMLU_DATASET}/{subject}:{split}"
+
 
 def place_eval_bundle(file_path):
     """Unzip eval_bundle.zip and place it in the base directory."""
@@ -347,6 +405,7 @@ def main():
             {
                 "label": "mmlu_computer_security",
                 "dataset_uri": "mmlu_computer_security.jsonl",
+                "hf_subject": "computer_security",
                 "task_type": "multiple_choice",
                 "num_fewshot": 5,
                 "random_baseline": 25.0,
@@ -355,6 +414,7 @@ def main():
             {
                 "label": "mmlu_cybersecurity",
                 "dataset_uri": "mmlu_cybersecurity.jsonl",
+                "hf_subject": None,
                 "task_type": "multiple_choice",
                 "num_fewshot": 5,
                 "random_baseline": 25.0,
@@ -363,6 +423,7 @@ def main():
             {
                 "label": "mmlu_network_security",
                 "dataset_uri": "mmlu_network_security.jsonl",
+                "hf_subject": None,
                 "task_type": "multiple_choice",
                 "num_fewshot": 5,
                 "random_baseline": 25.0,
@@ -373,8 +434,14 @@ def main():
         for cfg in cybersec_tasks_cfg:
             data_path = os.path.join(data_base_path, cfg["dataset_uri"])
             if not os.path.exists(data_path):
-                print0(f"  {cfg['label']}: data not found at {data_path}, skipping")
-                continue
+                hf_subject = cfg.get("hf_subject")
+                if hf_subject is None:
+                    print0(f"  {cfg['label']}: HF MMLU subset unavailable, skipping")
+                    continue
+                ok, message = prepare_hf_mmlu_core_jsonl(hf_subject, data_path)
+                print0(f"  {cfg['label']}: {message}")
+                if not ok:
+                    continue
 
             print0(f"Evaluating: {cfg['description']}... ", end='')
             start_time = time.time()
