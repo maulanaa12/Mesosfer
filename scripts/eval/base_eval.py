@@ -261,23 +261,32 @@ def print_final_eval_summary(core_results=None, cybersec_results=None, coding_re
     print0("Final Evaluation Summary")
     print0("="*80)
 
+    overall_centered = []
     if core_results:
         print0(f"CORE metric: {core_results['core_metric']:.4f}")
         for label, acc in core_results["results"].items():
             centered = core_results["centered_results"][label]
+            overall_centered.append(centered)
             print0(f"  {label:<35} accuracy: {acc:.4f} | centered: {centered:.4f}")
 
     if cybersec_results:
         cybersec_metric = sum(v['centered'] for v in cybersec_results.values()) / len(cybersec_results)
         print0(f"\nCybersec domain metric: {cybersec_metric:.4f}")
         for label, result in cybersec_results.items():
+            overall_centered.append(result['centered'])
             print0(f"  {label:<35} accuracy: {result['accuracy']:.4f} | centered: {result['centered']:.4f}")
 
     if coding_results:
         coding_metric = sum(v['centered'] for v in coding_results.values()) / len(coding_results)
         print0(f"\nCoding domain metric: {coding_metric:.4f}")
         for label, result in coding_results.items():
+            overall_centered.append(result['centered'])
             print0(f"  {label:<35} accuracy: {result['accuracy']:.4f} | centered: {result['centered']:.4f}")
+
+    if overall_centered:
+        overall_metric = sum(overall_centered) / len(overall_centered)
+        print0("")
+        print0(f"CORE overall metric: {overall_metric:.4f}")
 
     if bpb_results:
         print0("\nBPB:")
@@ -667,6 +676,16 @@ def main():
         coding_metric = sum(v['centered'] for v in coding_results.values()) / len(coding_results)
         report_data[0]["CodingDomain metric"] = coding_metric
         report_data.append({k: v['accuracy'] for k, v in coding_results.items()})
+
+    overall_centered = []
+    if core_results:
+        overall_centered.extend(core_results["centered_results"].values())
+    if cybersec_results:
+        overall_centered.extend(v["centered"] for v in cybersec_results.values())
+    if coding_results:
+        overall_centered.extend(v["centered"] for v in coding_results.values())
+    if overall_centered:
+        report_data[0]["CORE overall metric"] = sum(overall_centered) / len(overall_centered)
 
     if bpb_results:
         report_data[0]["train bpb"] = bpb_results.get("train")

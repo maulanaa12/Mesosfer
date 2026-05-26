@@ -66,16 +66,29 @@ function applyInline(html) {
  */
 function buildCodeBlock(lang, code) {
     const wrapper = document.createElement('div');
-    wrapper.className = 'md-code-block';
+    const normalizedLang = (lang || '').toLowerCase();
+    const terminalLangs = new Set(['bash', 'sh', 'shell', 'zsh', 'fish', 'console', 'terminal', 'powershell', 'ps1']);
+    const isTerminal = terminalLangs.has(normalizedLang);
+    wrapper.className = `md-code-block${isTerminal ? ' md-terminal-block' : ''}`;
 
     // ── Header bar ──
     const header = document.createElement('div');
     header.className = 'md-code-header';
 
+    const headerLeft = document.createElement('div');
+    headerLeft.className = 'md-code-header-left';
+
+    const windowDots = document.createElement('span');
+    windowDots.className = 'md-code-dots';
+    windowDots.setAttribute('aria-hidden', 'true');
+    windowDots.innerHTML = '<i></i><i></i><i></i>';
+    headerLeft.appendChild(windowDots);
+
     const langLabel = document.createElement('span');
     langLabel.className = 'md-code-lang';
-    langLabel.textContent = lang || 'plaintext';
-    header.appendChild(langLabel);
+    langLabel.textContent = isTerminal ? 'terminal' : (lang || 'plaintext');
+    headerLeft.appendChild(langLabel);
+    header.appendChild(headerLeft);
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'md-code-copy';

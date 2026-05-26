@@ -13,9 +13,19 @@ from functools import partial
 import torch
 import torch.distributed as dist
 
-from mesosfer.utils.common import compute_init, compute_cleanup, get_dist_info, print0, autodetect_device_type
+from mesosfer.utils.common import compute_init, compute_cleanup, get_dist_info, print0, autodetect_device_type, get_base_dir
 from mesosfer.utils.checkpoint_manager import load_model
 from mesosfer.eval.engine import Engine
+from mesosfer.eval.core_eval import evaluate_task
+from scripts.eval.base_eval import (
+    HF_CODEMMLU_DATASET,
+    HF_CYBERMETRIC_DATASET,
+    _convert_hf_codemmlu_split_to_core_jsonl,
+    _convert_hf_cybermetric_split_to_core_jsonl,
+    _random_baseline_for_data,
+    prepare_hf_core_jsonl,
+    prepare_hf_mmlu_core_jsonl,
+)
 
 from tasks.humaneval import HumanEval
 from tasks.mmlu import MMLU
@@ -177,12 +187,173 @@ def run_chat_eval(task_name, model, tokenizer, engine,
     return acc
 
 # -----------------------------------------------------------------------------
+
+def _evaluate_domain_jsonl_task(model, tokenizer, device, cfg, data_path, max_problems=None):
+    print0(f"Evaluating: {cfg['description']}... ", end='')
+    import json
+    import random
+    import time
+    start_time = time.time()
+
+    with open(data_path, 'r', encoding='utf-8') as f:
+        data = [json.loads(line.strip()) for line in f]
+
+    shuffle_rng = random.Random(1337)
+    shuffle_rng.shuffle(data)
+    if max_problems is not None:
+        data = data[:max_problems]
+
+    task_meta = {
+        'task_type': 'multiple_choice',
+        'dataset_uri': cfg['dataset_uri'],
+        'num_fewshot': cfg['num_fewshot'],
+        'continuation_delimiter': ' ',
+    }
+    accuracy = evaluate_task(model, tokenizer, data, device, task_meta)
+    baseline = cfg.get('random_baseline')
+    if baseline is None:
+        baseline = _random_baseline_for_data(data)
+    centered = (accuracy - 0.01 * baseline) / (1.0 - 0.01 * baseline)
+    elapsed = time.time() - start_time
+    print0(f"accuracy: {accuracy:.4f} | centered: {centered:.4f} | time: {elapsed:.2f}s")
+    return accuracy, centered
+
+
+def run_chat_domain_eval(model, tokenizer, device, max_problems=None, domains="cyber,coding"):
+    base_dir = get_base_dir()
+    data_base_path = f"{base_dir}/eval_bundle/eval_data"
+    requested_domains = {domain.strip() for domain in domains.split(',') if domain.strip()}
+
+    results = {}
+    centered_results = {}
+
+    if "cyber" in requested_domains:
+        print0("\n" + "=" * 80)
+        print0("Chat Cybersecurity Domain Evaluation")
+        print0("=" * 80)
+        cyber_tasks = [
+            {
+                "label": "mmlu_computer_security",
+                "dataset_uri": "mmlu_computer_security.jsonl",
+                "prepare": lambda path: prepare_hf_mmlu_core_jsonl("computer_security", path),
+                "num_fewshot": 5,
+                "random_baseline": 25.0,
+                "description": "MMLU Computer Security (5-shot)",
+            },
+            {
+                "label": "cybermetric_500",
+                "dataset_uri": "cybermetric_500.jsonl",
+                "prepare": lambda path: prepare_hf_core_jsonl(
+                    HF_CYBERMETRIC_DATASET,
+                    path,
+                    converter=_convert_hf_cybermetric_split_to_core_jsonl,
+                ),
+                "num_fewshot": 3,
+                "random_baseline": 25.0,
+                "description": "CyberMetric 500 (3-shot)",
+            },
+        ]
+        for cfg in cyber_tasks:
+            data_path = f"{data_base_path}/{cfg['dataset_uri']}"
+            ok, message = cfg["prepare"](data_path)
+            print0(f"  {cfg['label']}: {message}")
+            if not ok:
+                continue
+            accuracy, centered = _evaluate_domain_jsonl_task(model, tokenizer, device, cfg, data_path, max_problems)
+            results[cfg["label"]] = accuracy
+            centered_results[cfg["label"]] = centered
+
+    if "coding" in requested_domains:
+        print0("\n" + "=" * 80)
+        print0("Chat Coding Domain Evaluation")
+        print0("=" * 80)
+        coding_tasks = [
+            ("codemmlu_programming_syntax", "programming_syntax", 3),
+            ("codemmlu_software_principles", "software_principles", 3),
+            ("codemmlu_code_completion", "code_completion", 3),
+            ("codemmlu_code_repair", "code_repair", 3),
+            ("codemmlu_execution_prediction", "execution_prediction", 3),
+        ]
+        for label, subset, fewshot in coding_tasks:
+            cfg = {
+                "label": label,
+                "dataset_uri": f"{label}.jsonl",
+                "num_fewshot": fewshot,
+                "random_baseline": None,
+                "description": f"CodeMMLU {subset} ({fewshot}-shot)",
+            }
+            data_path = f"{data_base_path}/{cfg['dataset_uri']}"
+            ok, message = prepare_hf_core_jsonl(
+                HF_CODEMMLU_DATASET,
+                data_path,
+                subset=subset,
+                converter=_convert_hf_codemmlu_split_to_core_jsonl,
+            )
+            print0(f"  {label}: {message}")
+            if not ok:
+                continue
+            accuracy, centered = _evaluate_domain_jsonl_task(model, tokenizer, device, cfg, data_path, max_problems)
+            results[label] = accuracy
+            centered_results[label] = centered
+
+    metrics = {}
+    for domain_name, prefix in [("ChatCyberDomain metric", ("mmlu_", "cybermetric_")),
+                                ("ChatCodingDomain metric", ("codemmlu_",))]:
+        domain_values = [centered for label, centered in centered_results.items() if label.startswith(prefix)]
+        if domain_values:
+            metrics[domain_name] = sum(domain_values) / len(domain_values)
+
+    if metrics:
+        print0("\n" + "=" * 80)
+        print0("Chat Domain Evaluation Summary")
+        print0("=" * 80)
+        for name, value in metrics.items():
+            print0(f"{name}: {value:.4f}")
+        for label, accuracy in results.items():
+            print0(f"  {label:<35} accuracy: {accuracy:.4f} | centered: {centered_results[label]:.4f}")
+
+    return results, centered_results, metrics
+
+
+def print_final_chat_eval_summary(results, baseline_accuracies, chatcore_metric_dict,
+                                  domain_results=None, domain_centered_results=None, domain_metrics=None):
+    print0("\n" + "=" * 80)
+    print0("Final Chat Evaluation Summary")
+    print0("=" * 80)
+
+    overall_centered = []
+    if results:
+        if chatcore_metric_dict:
+            print0(f"ChatCORE metric: {chatcore_metric_dict['ChatCORE metric']:.4f}")
+        for task_name, acc in results.items():
+            baseline_acc = baseline_accuracies.get(task_name, 0.0)
+            centered = (acc - baseline_acc) / (1.0 - baseline_acc)
+            overall_centered.append(centered)
+            print0(f"  {task_name:<35} accuracy: {acc:.4f} | centered: {centered:.4f}")
+
+    if domain_metrics:
+        print0("")
+        for name, value in domain_metrics.items():
+            print0(f"{name}: {value:.4f}")
+
+    if domain_results:
+        for label, accuracy in domain_results.items():
+            centered = domain_centered_results[label]
+            overall_centered.append(centered)
+            print0(f"  {label:<35} accuracy: {accuracy:.4f} | centered: {centered:.4f}")
+
+    if overall_centered:
+        overall_metric = sum(overall_centered) / len(overall_centered)
+        print0("")
+        print0(f"ChatCORE overall metric: {overall_metric:.4f}")
+
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
 
     # Parse command-line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--source', type=str, required=True, help="Source of the model: sft|rl")
-    parser.add_argument('-a', '--task-name', type=str, default=None, help="Task name. Default = all tasks. Use | to split multiple tasks.")
+    parser.add_argument('-a', '--task-name', type=str, default=None, help="Task name. Default = all tasks. Use | to split multiple tasks. Use 'none' for domain eval only.")
     parser.add_argument('-t', '--temperature', type=float, default=0.0)
     parser.add_argument('-m', '--max-new-tokens', type=int, default=512)
     parser.add_argument('-n', '--num-samples', type=int, default=1)
@@ -191,6 +362,8 @@ if __name__ == "__main__":
     parser.add_argument('-g', '--model-tag', type=str, default=None, help='Model tag to load')
     parser.add_argument('-s', '--step', type=int, default=None, help='Step to load')
     parser.add_argument('-x', '--max-problems', type=int, default=None, help='Max problems to evaluate')
+    parser.add_argument('--domain-eval', type=int, default=0, help='1 = also run cyber/coding domain evals')
+    parser.add_argument('--domain-eval-domains', type=str, default='cyber,coding', help='Comma-separated domain eval groups: cyber,coding')
     parser.add_argument('--device-type', type=str, default='', choices=['cuda', 'cpu', 'mps'], help='Device type for evaluation: cuda|cpu|mps. empty => autodetect')
     args = parser.parse_args()
 
@@ -210,7 +383,12 @@ if __name__ == "__main__":
         'HumanEval': 0.0, # open-ended => 0%
         'SpellingBee': 0.0, # open-ended => 0%
     }
-    task_names = all_tasks if args.task_name is None else args.task_name.split('|')
+    if args.task_name is None:
+        task_names = all_tasks
+    elif args.task_name.lower() == 'none':
+        task_names = []
+    else:
+        task_names = args.task_name.split('|')
 
     # Run all the task evaluations sequentially
     results = {}
@@ -228,6 +406,16 @@ if __name__ == "__main__":
         results[task_name] = acc
         print0(f"{task_name} accuracy: {100 * acc:.2f}%")
 
+    domain_results = {}
+    domain_centered_results = {}
+    domain_metrics = {}
+    if args.domain_eval:
+        domain_results, domain_centered_results, domain_metrics = run_chat_domain_eval(
+            model, tokenizer, device,
+            max_problems=args.max_problems,
+            domains=args.domain_eval_domains,
+        )
+
     # Log to report
     from mesosfer.utils.report import get_report
     all_tasks_were_evaluated = all(task_name in results for task_name in all_tasks)
@@ -242,10 +430,33 @@ if __name__ == "__main__":
             centered_mean += centered_acc
         chatcore_metric = centered_mean / len(results)
         chatcore_metric_dict = {"ChatCORE metric": chatcore_metric}
+
+    overall_centered = []
+    for task_name, acc in results.items():
+        baseline_acc = baseline_accuracies.get(task_name, 0.0)
+        overall_centered.append((acc - baseline_acc) / (1.0 - baseline_acc))
+    overall_centered.extend(domain_centered_results.values())
+    overall_metric_dict = {}
+    if overall_centered:
+        overall_metric_dict = {"ChatCORE overall metric": sum(overall_centered) / len(overall_centered)}
+
+    print_final_chat_eval_summary(
+        results,
+        baseline_accuracies,
+        chatcore_metric_dict,
+        domain_results=domain_results,
+        domain_centered_results=domain_centered_results,
+        domain_metrics=domain_metrics,
+    )
+
     get_report().log(section="Chat evaluation " + args.source, data=[
         vars(args), # CLI args
         results,
         chatcore_metric_dict,
+        domain_results,
+        domain_centered_results,
+        domain_metrics,
+        overall_metric_dict,
     ])
 
     compute_cleanup()

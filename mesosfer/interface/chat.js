@@ -180,7 +180,11 @@ function addMessage(role, content, messageIndex = null) {
 
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
-    contentDiv.textContent = content;
+    if (role === 'user' && typeof renderMarkdown === 'function' && /```[\s\S]*```|`[^`\n]+`/.test(content)) {
+        contentDiv.appendChild(renderMarkdown(content));
+    } else {
+        contentDiv.textContent = content;
+    }
 
     if (role === 'user' && messageIndex !== null) {
         contentDiv.setAttribute('data-message-index', messageIndex);

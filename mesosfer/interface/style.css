@@ -45,10 +45,10 @@
 
     /* Border Radius */
     --rounded-xs:   0px;
-    --rounded-sm:   0px;
-    --rounded-md:   0px;
-    --rounded-lg:   0px;
-    --rounded-xl:   0px;
+    --rounded-sm:   4px;
+    --rounded-md:   6px;
+    --rounded-lg:   8px;
+    --rounded-xl:   8px;
     --rounded-pill: 20px; /* Toggle switches only */
 
     /* Spacing */
@@ -93,7 +93,8 @@ body {
 
 /* ── Header ── */
 .header {
-    background-color: var(--color-canvas);
+    background-color: rgba(0, 0, 0, 0.88);
+    backdrop-filter: blur(18px);
     border-bottom: 1px solid var(--color-hairline);
     padding: var(--spacing-md) var(--spacing-lg);
     display: flex;
@@ -172,7 +173,7 @@ body {
 }
 
 .chat-wrapper {
-    max-width: 48rem;
+    max-width: 54rem;
     margin: 0 auto;
     padding: var(--spacing-xl) var(--spacing-lg) 120px;
     display: flex;
@@ -200,6 +201,7 @@ body {
     max-width: 100%;
     font-size: 1rem;
     color: var(--color-body);
+    overflow-wrap: anywhere;
 }
 
 /* Assistant message — transparent, full width, sharp-cut */
@@ -208,10 +210,11 @@ body {
     border: none;
     cursor: pointer;
     border-radius: var(--rounded-md);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    margin-left: calc(-1 * var(--spacing-sm));
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin-left: calc(-1 * var(--spacing-md));
     transition: background-color 0.15s ease;
     color: var(--color-body-strong);
+    width: 100%;
 }
 
 .message.assistant .message-content:hover {
@@ -220,14 +223,16 @@ body {
 
 /* User message — Charcoal sharp bubble */
 .message.user .message-content {
-    background-color: var(--color-surface-card);
+    background: linear-gradient(180deg, #242424 0%, #1d1d1d 100%);
     border-radius: var(--rounded-lg);
     padding: var(--spacing-sm) var(--spacing-md);
     max-width: 65%;
     cursor: pointer;
     transition: background-color 0.15s ease;
     color: var(--color-ink);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    white-space: pre-wrap;
 }
 
 .message.user .message-content:hover {
@@ -291,12 +296,13 @@ body {
     align-items: flex-end;
     gap: var(--spacing-sm);
     width: 100%;
-    background-color: var(--color-surface-card);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(24, 24, 24, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.16);
     border-radius: var(--rounded-md);
     padding: var(--spacing-xs) var(--spacing-xs) var(--spacing-xs) var(--spacing-md);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 14px 44px rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(18px);
 }
 
 .input-row:focus-within {
@@ -854,41 +860,73 @@ body {
 
 /* ── Code Block — high tech styling ── */
 .md-code-block {
-    margin: var(--spacing-sm) 0;
+    margin: var(--spacing-md) 0;
     border-radius: var(--rounded-lg);
     overflow: hidden;
-    background-color: var(--color-surface-dark);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #080b0f;
+    border: 1px solid rgba(148, 163, 184, 0.22);
     font-size: 0.875rem;
+    box-shadow: 0 18px 52px rgba(0, 0, 0, 0.42);
 }
 
 .md-code-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--spacing-xs) var(--spacing-md);
-    background-color: var(--color-surface-dark-elevated);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    min-height: 40px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: linear-gradient(180deg, #151a20 0%, #0f1318 100%);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
     user-select: none;
 }
 
+.md-code-header-left {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    min-width: 0;
+}
+
+.md-code-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.md-code-dots i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: block;
+    background: #4b5563;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.md-code-dots i:nth-child(1) { background: #ff5f57; }
+.md-code-dots i:nth-child(2) { background: #ffbd2e; }
+.md-code-dots i:nth-child(3) { background: #28c840; }
+
 .md-code-lang {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    color: var(--color-muted);
+    font-size: 0.7rem;
+    color: #cbd5e1;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .md-code-copy {
     display: flex;
     align-items: center;
     gap: var(--spacing-xxs);
-    padding: 4px var(--spacing-xs);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px var(--spacing-xs);
+    border: 1px solid rgba(148, 163, 184, 0.22);
     border-radius: var(--rounded-sm);
-    background: transparent;
-    color: var(--color-muted);
+    background: rgba(255, 255, 255, 0.04);
+    color: #cbd5e1;
     font-size: 0.6875rem;
     font-family: var(--font-display);
     text-transform: uppercase;
@@ -900,7 +938,7 @@ body {
 }
 
 .md-code-copy:hover {
-    background-color: var(--color-surface-dark-soft);
+    background-color: rgba(255, 192, 0, 0.08);
     border-color: var(--color-primary);
     color: var(--color-primary);
 }
@@ -912,9 +950,11 @@ body {
 
 .md-code-block pre {
     margin: 0;
-    padding: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
     overflow-x: auto;
-    background: transparent;
+    background:
+        linear-gradient(90deg, rgba(255, 192, 0, 0.045), transparent 26px),
+        #080b0f;
 }
 
 .md-code-block pre code {
@@ -927,6 +967,21 @@ body {
     border: none;
     white-space: pre;
     tab-size: 4;
+}
+
+.md-terminal-block pre {
+    background:
+        linear-gradient(90deg, rgba(41, 171, 226, 0.07), transparent 28px),
+        #05080c;
+}
+
+.md-terminal-block pre code {
+    color: #d9f99d;
+}
+
+.md-code-block ::selection {
+    background: rgba(255, 192, 0, 0.28);
+    color: #ffffff;
 }
 
 /* Scrollbar for code blocks */
@@ -981,11 +1036,12 @@ body.empty-state-active .empty-state {
     gap: var(--spacing-sm);
     width: 100%;
     max-width: 42rem;
-    background-color: var(--color-surface-card);
+    background: rgba(24, 24, 24, 0.96);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: var(--rounded-lg);
     padding: var(--spacing-xs) var(--spacing-xs) var(--spacing-xs) var(--spacing-md);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 18px 64px rgba(0, 0, 0, 0.55);
 }
 
 .empty-input-wrapper:focus-within {
