@@ -198,9 +198,10 @@ for group in optimizer.param_groups:
     group["initial_lr"] = group["lr"]
 
 # SFT data mixture and DataLoader
-identity_conversations_filepath = os.path.join(base_dir, "identity_conversations.jsonl")
-rules_filepath = os.path.join(os.path.dirname(__file__), "..", "..", "data", "sft", "rules.jsonl")
-rules_filepath = os.path.normpath(rules_filepath)
+sft_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "sft"))
+identity_conversations_filepath = os.path.join(sft_dir, "identity_conversations.jsonl")
+identity_conversations_en_filepath = os.path.join(sft_dir, "identity_conversations_en.jsonl")
+rules_filepath = os.path.join(sft_dir, "rules.jsonl")
 train_tasks = [
     SmolTalk(split="train"), # 460K rows of general conversations
     CustomJSON(filepath=identity_conversations_filepath), # 1000 rows of synthetic identity conversations
@@ -210,6 +211,15 @@ train_tasks = [
     SimpleSpelling(size=200000, split="train"), # 200K rows of Simple Spelling (e.g. spell the word 'apple')
     SpellingBee(size=80000, split="train"), # 80K rows of Spelling Bee (e.g. how many 'r' are in 'strawberry'?)
 ]
+
+if args.include_english_sft and os.path.exists(identity_conversations_en_filepath):
+    train_tasks.extend([
+        CustomJSON(filepath=identity_conversations_en_filepath),
+        CustomJSON(filepath=identity_conversations_en_filepath),
+    ])
+    print0(f"Added identity_conversations_en.jsonl: 2 epoch(s) from {identity_conversations_en_filepath}")
+elif args.include_english_sft:
+    print0(f"WARNING: identity_conversations_en.jsonl not found at {identity_conversations_en_filepath}, skipping")
 
 # Add rules.jsonl if it exists and rules_epochs > 0
 if args.rules_epochs > 0 and os.path.exists(rules_filepath):
