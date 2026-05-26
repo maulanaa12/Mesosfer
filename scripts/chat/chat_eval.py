@@ -246,6 +246,7 @@ def run_chat_domain_eval(model, tokenizer, device, max_problems=None, domains="c
                 "prepare": lambda path: prepare_hf_core_jsonl(
                     HF_CYBERMETRIC_DATASET,
                     path,
+                    split="train",
                     converter=_convert_hf_cybermetric_split_to_core_jsonl,
                 ),
                 "num_fewshot": 3,

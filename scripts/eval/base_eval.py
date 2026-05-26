@@ -562,6 +562,7 @@ def main():
                 "dataset_uri": "cybermetric_500.jsonl",
                 "hf_dataset": HF_CYBERMETRIC_DATASET,
                 "hf_subset": None,
+                "hf_split": "train",
                 "hf_converter": _convert_hf_cybermetric_split_to_core_jsonl,
                 "task_type": "multiple_choice",
                 "num_fewshot": 3,
@@ -580,6 +581,7 @@ def main():
                         cfg["hf_dataset"],
                         data_path,
                         subset=cfg.get("hf_subset"),
+                        split=cfg.get("hf_split", "test"),
                         converter=cfg["hf_converter"],
                     )
                 print0(f"  {cfg['label']}: {message}")
