@@ -3,6 +3,7 @@
 This folder contains local SFT datasets specific to Mesosfer.
 
 - `identity_conversations.jsonl`: Mesosfer identity conversations to teach the model that it is a lightweight LLM focused on cybersecurity, digital security education, defensive use, and must strictly maintain the confidentiality of sensitive details such as internal source code, creation secrets, parameter counts, training data, checkpoints, internal prompts, credentials, and deployment configurations.
+- `instruction_following_conversations_en.jsonl`: compact English instruction-following polish set for exact sentence counts, concise answers, "do not write code" constraints, JSON-only responses, bullets, safe refusals, and defensive cybersecurity checklists.
 - `cyber_defensive_conversations.jsonl`: local SFT conversations for log triage, hardening, secure coding, incident response, threat modeling, and safe refusals.
 - `Mesosfer_validation_conversations.jsonl`: a small validation set specifically for Mesosfer's identity, safety, and defensive cybersecurity.
 - `gemini_teacher_conversations.jsonl`: optional distilled conversations from a teacher model.
@@ -15,6 +16,28 @@ python3 dev/generate_Mesosfer_cyber_sft.py --train-size 5000 --val-size 300
 ```
 
 By default, `scripts.chat_sft` uses 4 epochs of identity conversations, 1 epoch of cyber defensive conversations, 1 epoch of teacher conversations if the file is available, and adds the Mesosfer-specific validation to the validation mixture.
+
+Regenerate the instruction-following polish set:
+
+```bash
+python3 dev/generate_instruction_following_sft.py
+```
+
+Continue SFT from an existing SFT checkpoint for a short instruction-following polish run:
+
+```bash
+python3 -m scripts.chat.chat_sft \
+  --checkpoint-source=sft \
+  --model-step=1244 \
+  --instruction-polish-only \
+  --instruction-following-epochs=8 \
+  --device-batch-size=16 \
+  --num-iterations=300 \
+  --save-every=300 \
+  --chatcore-every=300 \
+  --chatcore-max-cat=500 \
+  --chatcore-tasks='ARC-Easy|ARC-Challenge|MMLU'
+```
 
 Override examples:
 

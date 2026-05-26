@@ -42,6 +42,7 @@ parser.add_argument("--run", type=str, default="dummy", help="wandb run name ('d
 # Runtime
 parser.add_argument("--device-type", type=str, default="", help="cuda|cpu|mps (empty = autodetect)")
 # Model loading
+parser.add_argument("--checkpoint-source", type=str, default="base", choices=["base", "sft"], help="checkpoint source to fine-tune from: base|sft")
 parser.add_argument("--model-tag", type=str, default=None, help="model tag to load from")
 parser.add_argument("--model-step", type=int, default=None, help="model step to load from")
 parser.add_argument("--load-optimizer", type=int, default=1, help="warm-start optimizer from pretrained checkpoint (0=no, 1=yes)")
@@ -89,6 +90,8 @@ parser.add_argument("--tiamz-cybersec-epochs", type=int, default=2, help="epochs
 parser.add_argument("--include-english-sft", type=int, default=1, help="1 = include _en variants of bilingual cybersec datasets, 0 = ID only")
 parser.add_argument("--disable-cybersec-sft", action="store_true", help="disable all cybersecurity SFT datasets (for ablation)")
 parser.add_argument("--rules-epochs", type=int, default=4, help="epochs of rules.jsonl (behavioral/safety/format rules)")
+parser.add_argument("--instruction-following-epochs", type=int, default=4, help="epochs of instruction_following_conversations_en.jsonl (format/count/conciseness polish)")
+parser.add_argument("--instruction-polish-only", action="store_true", help="train only on local identity/rules/instruction-following polish data")
 parser.add_argument("--save-every", type=int, default=-1, help="save intermediate checkpoint every N steps (-1 = only at end)")
 args = parser.parse_args()
 user_config = vars(args).copy()
@@ -130,7 +133,10 @@ else:
     print0("WARNING: Using PyTorch SDPA fallback. SFT training may be less efficient.")
 
 # Load the model and tokenizer
-model, tokenizer, meta = load_model("base", device, phase="train", model_tag=args.model_tag, step=args.model_step)
+model, tokenizer, meta = load_model(args.checkpoint_source, device, phase="train", model_tag=args.model_tag, step=args.model_step)
+loaded_checkpoint_step = int(meta.get("step", 0) or 0) if args.checkpoint_source == "sft" else 0
+if loaded_checkpoint_step > 0:
+    print0(f"Continuing SFT from {args.checkpoint_source} checkpoint step {loaded_checkpoint_step}")
 
 # Inherit training hyperparameters from pretrained checkpoint (None = inherit, explicit value = override)
 pretrain_user_config = meta.get("user_config", {})
@@ -176,7 +182,7 @@ optimizer = model.setup_optimizer(unembedding_lr=args.unembedding_lr, embedding_
 # restore our fresh SFT LRs after loading.
 base_dir = get_base_dir()
 if args.load_optimizer:
-    optimizer_data = load_optimizer_state("base", device, rank=ddp_rank, model_tag=args.model_tag, step=args.model_step)
+    optimizer_data = load_optimizer_state(args.checkpoint_source, device, rank=ddp_rank, model_tag=args.model_tag, step=args.model_step)
     if optimizer_data is not None:
         base_lrs = [group["lr"] for group in optimizer.param_groups]
         optimizer.load_state_dict(optimizer_data)
@@ -202,15 +208,22 @@ sft_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "
 identity_conversations_filepath = os.path.join(sft_dir, "identity_conversations.jsonl")
 identity_conversations_en_filepath = os.path.join(sft_dir, "identity_conversations_en.jsonl")
 rules_filepath = os.path.join(sft_dir, "rules.jsonl")
-train_tasks = [
-    SmolTalk(split="train"), # 460K rows of general conversations
-    CustomJSON(filepath=identity_conversations_filepath), # 1000 rows of synthetic identity conversations
-    CustomJSON(filepath=identity_conversations_filepath), # 2 epochs of these
-    *[MMLU(subset="all", split="auxiliary_train") for _ in range(args.mmlu_epochs)], # 100K rows per epoch
-    *[GSM8K(subset="main", split="train") for _ in range(args.gsm8k_epochs)], # 8K rows per epoch
-    SimpleSpelling(size=200000, split="train"), # 200K rows of Simple Spelling (e.g. spell the word 'apple')
-    SpellingBee(size=80000, split="train"), # 80K rows of Spelling Bee (e.g. how many 'r' are in 'strawberry'?)
-]
+instruction_following_filepath = os.path.join(sft_dir, "instruction_following_conversations_en.jsonl")
+if args.instruction_polish_only:
+    train_tasks = [
+        CustomJSON(filepath=identity_conversations_filepath),
+    ]
+    print0("Instruction polish mode: skipping broad SmolTalk/MMLU/GSM8K/spelling training tasks")
+else:
+    train_tasks = [
+        SmolTalk(split="train"), # 460K rows of general conversations
+        CustomJSON(filepath=identity_conversations_filepath), # 1000 rows of synthetic identity conversations
+        CustomJSON(filepath=identity_conversations_filepath), # 2 epochs of these
+        *[MMLU(subset="all", split="auxiliary_train") for _ in range(args.mmlu_epochs)], # 100K rows per epoch
+        *[GSM8K(subset="main", split="train") for _ in range(args.gsm8k_epochs)], # 8K rows per epoch
+        SimpleSpelling(size=200000, split="train"), # 200K rows of Simple Spelling (e.g. spell the word 'apple')
+        SpellingBee(size=80000, split="train"), # 80K rows of Spelling Bee (e.g. how many 'r' are in 'strawberry'?)
+    ]
 
 if args.include_english_sft and os.path.exists(identity_conversations_en_filepath):
     train_tasks.extend([
@@ -229,8 +242,18 @@ if args.rules_epochs > 0 and os.path.exists(rules_filepath):
 elif args.rules_epochs > 0:
     print0(f"WARNING: rules.jsonl not found at {rules_filepath}, skipping")
 
+# Add instruction-following polish data (exact counts, no-code constraints, JSON-only, concise answers)
+if args.instruction_following_epochs > 0 and os.path.exists(instruction_following_filepath):
+    instruction_tasks = [CustomJSON(filepath=instruction_following_filepath) for _ in range(args.instruction_following_epochs)]
+    train_tasks.extend(instruction_tasks)
+    print0(f"Added instruction_following_conversations_en.jsonl: {args.instruction_following_epochs} epoch(s) from {instruction_following_filepath}")
+elif args.instruction_following_epochs > 0:
+    print0(f"WARNING: instruction_following_conversations_en.jsonl not found at {instruction_following_filepath}, skipping")
+
 # Add cybersecurity SFT mixture (preserves cybersec capability from pretraining)
-if not args.disable_cybersec_sft:
+if args.instruction_polish_only:
+    print0("Instruction polish mode: skipping broad cybersec SFT mixture")
+elif not args.disable_cybersec_sft:
     cybersec_tasks = build_cybersec_sft_tasks(
         cyber_defensive_epochs=args.cyber_defensive_epochs,
         cloud_security_epochs=args.cloud_security_epochs,
@@ -505,13 +528,14 @@ while True:
     if last_step or (args.save_every > 0 and step > 0 and step % args.save_every == 0):
         output_dirname = args.model_tag if args.model_tag else f"d{depth}" # e.g. d12
         checkpoint_dir = os.path.join(base_dir, "chatsft_checkpoints", output_dirname)
+        checkpoint_step = loaded_checkpoint_step + step
         save_checkpoint(
             checkpoint_dir,
-            step,
+            checkpoint_step,
             orig_model.state_dict(),
             optimizer.state_dict(),
             {
-                "step": step,
+                "step": checkpoint_step,
                 "val_bpb": val_bpb, # loss at last step
                 "model_config": {
                     "sequence_len": args.max_seq_len,
