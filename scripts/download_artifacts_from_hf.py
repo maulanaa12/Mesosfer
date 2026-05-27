@@ -160,17 +160,22 @@ def _whoami(api) -> str | None:
 
 # ── 1. MODEL CHECKPOINT DOWNLOAD ─────────────────────────────────────────────
 
-def list_remote_checkpoints(api, repo: str, source: str, depth: str) -> list[dict]:
+def list_remote_checkpoints(api, repo: str, source: str, depth: str) -> tuple[list[dict], str]:
     """
-    Return [{"step": int, "val_bpb": float|None, "files": set[str]}, ...]
-    discovered under <source>/<depth>/ in the HF repo, sorted by step.
+    Return (rows, prefix)
+    discovered under <source>/<depth>/ or <depth>/ in the HF repo, sorted by step.
     """
-    prefix = f"{source}/{depth}/"
     try:
         files = api.list_repo_files(repo_id=repo, repo_type="model")
     except Exception as e:
         err(f"ERROR: cannot list files in {repo}: {e}")
-        return []
+        return [], ""
+
+    # Check if files exist with the source prefix (e.g., base/d24/)
+    source_prefix = f"{source}/{depth}/"
+    has_source_prefix = any(f.startswith(source_prefix) for f in files)
+    
+    prefix = source_prefix if has_source_prefix else f"{depth}/"
 
     by_step: dict[int, dict] = {}
     for path in files:
@@ -189,7 +194,7 @@ def list_remote_checkpoints(api, repo: str, source: str, depth: str) -> list[dic
 
     rows = sorted(by_step.values(), key=lambda r: r["step"])
     if not rows:
-        return rows
+        return rows, prefix
 
     # Fetch val_bpb for each meta file (cheap: small JSON) — best effort
     from huggingface_hub import hf_hub_download
@@ -217,10 +222,10 @@ def list_remote_checkpoints(api, repo: str, source: str, depth: str) -> list[dic
         bpb_str = f"{bpb:.6f}" if isinstance(bpb, float) else "N/A     "
         tag = " ← BEST" if isinstance(bpb, float) and bpb == best_bpb else ""
         r["label"] = f"step {r['step']:>7,}   val_bpb={bpb_str}{tag}"
-    return rows
+    return rows, prefix
 
 
-def _download_one_step(api, hf_hub_download, repo: str, source: str, depth: str,
+def _download_one_step(api, hf_hub_download, repo: str, prefix: str,
                        step: int, out_dir: Path, model_only: bool, available: set[str]) -> tuple[int, int]:
     """Download a single step's files into out_dir. Returns (downloaded, total)."""
     step_str = f"{step:06d}"
@@ -242,7 +247,7 @@ def _download_one_step(api, hf_hub_download, repo: str, source: str, depth: str,
         info(f"  Downloading {name} …")
         cached = hf_hub_download(
             repo_id=repo, repo_type="model",
-            filename=f"{source}/{depth}/{name}",
+            filename=f"{prefix}{name}",
         )
         # Move/symlink cached file into mesosfer cache layout
         try:
@@ -269,13 +274,14 @@ def download_model(args, base_dir: Path) -> None:
 
     out_dir = base_dir / SOURCE_DIR_MAP[args.source] / args.depth
     info(f"\nRepo:        {args.repo}")
-    info(f"Remote path: {args.source}/{args.depth}/")
-    info(f"Local dir:   {out_dir}")
-
-    rows = list_remote_checkpoints(api, args.repo, args.source, args.depth)
+    
+    rows, prefix = list_remote_checkpoints(api, args.repo, args.source, args.depth)
     if not rows:
-        err(f"ERROR: no checkpoints found at {args.repo}:{args.source}/{args.depth}/")
+        err(f"ERROR: no checkpoints found at {args.repo} with prefix {prefix}")
         return
+
+    info(f"Remote path: {prefix}")
+    info(f"Local dir:   {out_dir}")
 
     # Decide which steps to fetch
     steps: list[int] = []
@@ -322,7 +328,7 @@ def download_model(args, base_dir: Path) -> None:
             err(f"  step {step} not found in repo, skipping")
             continue
         d, t = _download_one_step(
-            api, hf_hub_download, args.repo, args.source, args.depth,
+            api, hf_hub_download, args.repo, prefix,
             step, out_dir, args.model_only, avail,
         )
         grand_dl += d
