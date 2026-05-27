@@ -38,8 +38,15 @@ class C:
     orange = "\033[38;5;208m" if USE_COLOR else ""
     cyan = "\033[38;5;45m" if USE_COLOR else ""
     green = "\033[38;5;120m" if USE_COLOR else ""
-    gray = "\033[38;5;245m" if USE_COLOR else ""
+    gray = "\033[38;5;244m" if USE_COLOR else ""
     white = "\033[38;5;255m" if USE_COLOR else ""
+    
+    # Mesosfer Aurora Gradient Palette
+    teal = "\033[38;5;51m" if USE_COLOR else ""
+    blue = "\033[38;5;39m" if USE_COLOR else ""
+    indigo = "\033[38;5;99m" if USE_COLOR else ""
+    purple = "\033[38;5;141m" if USE_COLOR else ""
+    magenta = "\033[38;5;201m" if USE_COLOR else ""
 
 
 def strip_ansi(text):
@@ -57,7 +64,50 @@ def fit_text(text, width):
     return plain[:max(0, width - 1)] + "…"
 
 
-def rule(label="", color=C.orange):
+class CodeBlockState:
+    def __init__(self):
+        self.in_code = False
+        self.buffer = ""
+        
+    def feed(self, text):
+        self.buffer += text
+        out = ""
+        while "\n" in self.buffer:
+            line, self.buffer = self.buffer.split("\n", 1)
+            stripped = line.strip()
+            if stripped.startswith("```"):
+                if not self.in_code:
+                    self.in_code = True
+                    lang = stripped[3:].strip() or "code"
+                    width = min(80, TERM_WIDTH - 4)
+                    out += f"\n{C.purple}╭─ {C.teal}{C.bold}{lang}{C.reset}{C.purple}{'─' * (width - 4 - len(lang))}╮{C.reset}\n"
+                else:
+                    self.in_code = False
+                    width = min(80, TERM_WIDTH - 4)
+                    out += f"{C.purple}╰{'─' * (width - 2)}╯{C.reset}\n"
+            else:
+                if self.in_code:
+                    out += f"{C.purple}│{C.reset}  {C.cyan}{line}{C.reset}\n"
+                else:
+                    out += line + "\n"
+        return out
+
+    def flush(self):
+        out = ""
+        if self.buffer:
+            if self.in_code:
+                out += f"{C.purple}│{C.reset}  {C.cyan}{self.buffer}{C.reset}"
+            else:
+                out += self.buffer
+            self.buffer = ""
+        if self.in_code:
+            self.in_code = False
+            width = min(80, TERM_WIDTH - 4)
+            out += f"\n{C.purple}╰{'─' * (width - 2)}╯{C.reset}\n"
+        return out
+
+
+def rule(label="", color=C.purple):
     if not label:
         print(f"{color}{'─' * TERM_WIDTH}{C.reset}")
         return
@@ -71,15 +121,16 @@ def boxed(title, left_lines, right_lines):
     left_w = min(34, max(26, inner // 3))
     sep = "│"
     right_w = inner - left_w - 1
-    print(f"{C.orange}╭{'─' * (TERM_WIDTH - 2)}╮{C.reset}")
-    print(f"{C.orange}│{C.reset}{C.orange}{fit_text(' ' + title, TERM_WIDTH - 2)}{C.reset}{C.orange}│{C.reset}")
-    print(f"{C.orange}├{'─' * left_w}┬{'─' * right_w}┤{C.reset}")
+    # Sleek purple borders with teal highlighted title
+    print(f"{C.purple}╭{'─' * (TERM_WIDTH - 2)}╮{C.reset}")
+    print(f"{C.purple}│{C.reset}{C.bold}{C.teal}{fit_text(' ' + title, TERM_WIDTH - 2)}{C.reset}{C.purple}│{C.reset}")
+    print(f"{C.purple}├{'─' * left_w}┬{'─' * right_w}┤{C.reset}")
     rows = max(len(left_lines), len(right_lines))
     for i in range(rows):
         left = left_lines[i] if i < len(left_lines) else ""
         right = right_lines[i] if i < len(right_lines) else ""
-        print(f"{C.orange}│{C.reset}{fit_text(left, left_w)}{C.orange}{sep}{C.reset}{fit_text(right, right_w)}{C.orange}│{C.reset}")
-    print(f"{C.orange}╰{'─' * left_w}┴{'─' * right_w}╯{C.reset}")
+        print(f"{C.purple}│{C.reset}{fit_text(left, left_w)}{C.purple}{sep}{C.reset}{fit_text(right, right_w)}{C.purple}│{C.reset}")
+    print(f"{C.purple}╰{'─' * left_w}┴{'─' * right_w}╯{C.reset}")
 
 
 def print_welcome(meta):
@@ -87,41 +138,43 @@ def print_welcome(meta):
     model_config = meta.get("model_config", {}) if isinstance(meta, dict) else {}
     depth = model_config.get("n_layer", "?")
     embd = model_config.get("n_embd", "?")
+    
+    # Elegant planet block art representing layers of the Mesosfer atmosphere
     left = [
         "",
-        f"{C.bold}{C.white}Welcome back.{C.reset}",
+        f"     {C.bold}{C.white}Welcome back.{C.reset}",
         "",
-        f"{C.orange}        ▄▄▄▄        {C.reset}",
-        f"{C.orange}      ▄██████▄      {C.reset}",
-        f"{C.orange}      ██ ██ ██      {C.reset}",
-        f"{C.orange}    ▀████████▀      {C.reset}",
-        f"{C.orange}      ▀█▀  ▀█▀      {C.reset}",
+        f"     {C.teal}   .▄▄████▄▄.     {C.reset}",
+        f"     {C.cyan} ▄████████████▄   {C.reset}",
+        f"     {C.blue}══{C.purple}████████████████{C.blue}══ {C.reset}",
+        f"     {C.indigo} ▀████████████▀   {C.reset}",
+        f"     {C.magenta}   ▀▀▀████▀▀▀     {C.reset}",
         "",
-        f"{C.gray}{args.source.upper()} · step {step} · {device_type}{C.reset}",
+        f"   {C.gray}{args.source.upper()} · Step {step}{C.reset}",
     ]
+    
+    cwd_name = os.path.basename(os.getcwd())
     right = [
-        f"{C.orange}{C.bold}Tips for getting started{C.reset}",
-        f"{C.white}/help{C.reset} for commands and shortcuts",
-        f"{C.white}/clear{C.reset} starts a fresh conversation",
-        f"{C.white}/temperature 0.4{C.reset} changes sampling",
+        f"{C.purple}{C.bold}Tips for getting started{C.reset}",
+        f"{C.white}/help{C.reset}  for commands and shortcuts",
+        f"{C.white}/save{C.reset}  saves conversation to markdown",
+        f"{C.white}\\ at end{C.reset} of line for multi-line",
         "",
-        f"{C.orange}{C.bold}Session{C.reset}",
-        f"model tag: {args.model_tag or 'auto'}",
-        f"layers: {depth} · embd: {embd}",
-        f"top-k: {args.top_k} · temp: {args.temperature}",
-        f"cwd: {os.getcwd()}",
+        f"{C.purple}{C.bold}Session Info{C.reset}",
+        f"model tag : {args.model_tag or 'auto'}",
+        f"layers    : {depth} · embd: {embd}",
+        f"sampler   : top-k: {args.top_k} · temp: {args.temperature}",
+        f"workspace : {cwd_name}",
     ]
     boxed(" Mesosfer Chat CLI ", left, right)
     print(f"{C.gray}? for shortcuts · Ctrl+C or /exit to quit{C.reset}")
 
 
 def print_assistant_header():
-    print()
-    rule(" Mesosfer ", C.orange)
+    print(f"\n{C.purple}{C.bold}✦ Mesosfer{C.reset}")
 
 
 def print_footer():
-    rule("", C.orange)
     print()
 
 
@@ -146,6 +199,7 @@ if not args.prompt:
     print_welcome(meta)
 
 conversation_tokens = [bos]
+chat_history = []
 
 while True:
 
@@ -153,9 +207,19 @@ while True:
         # Get the prompt from the launch command
         user_input = args.prompt
     else:
-        # Get the prompt interactively from the console
+        # Get the prompt interactively from the console, supporting multi-line ending with \
         try:
-            user_input = input(f"\n{C.orange}❯{C.reset} ").strip()
+            lines = []
+            while True:
+                prompt_symbol = f"\n{C.teal}{C.bold}❯{C.reset} " if not lines else f"{C.gray}...{C.reset} "
+                line = input(prompt_symbol)
+                if line.endswith("\\"):
+                    lines.append(line[:-1])
+                    continue
+                else:
+                    lines.append(line)
+                    break
+            user_input = "\n".join(lines).strip()
         except (EOFError, KeyboardInterrupt):
             print(f"\n{C.gray}Goodbye.{C.reset}")
             break
@@ -167,12 +231,47 @@ while True:
 
     if user_input.lower() in ['clear', '/clear']:
         conversation_tokens = [bos]
+        chat_history = []
         print_console("Conversation cleared.")
         continue
 
     if user_input.lower() in ['help', '/help', '?']:
-        print_console("Commands: /clear, /temperature <0-2>, /topk <1-200>, /exit")
-        print_console("Enter submits. Ctrl+C exits.")
+        print_console("Commands: /clear, /save [name.md], /temperature <0-2>, /topk <1-200>, /exit")
+        print_console("Multi-line: End a line with '\\' to write the next line.")
+        print_console("Ctrl+C during generation will stop the response stream safely.")
+        continue
+
+    if user_input.lower().startswith('/save'):
+        if not chat_history:
+            print_console("No conversation history to save yet.")
+            continue
+        parts = user_input.split()
+        filename = ""
+        if len(parts) > 1:
+            filename = parts[1]
+            if not filename.endswith(".md"):
+                filename += ".md"
+        else:
+            import datetime
+            now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"chat_{now}.md"
+            
+        os.makedirs("data/chat_history", exist_ok=True)
+        filepath = os.path.join("data/chat_history", filename)
+        
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write("# Mesosfer Chat Session\n")
+                f.write(f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Model Source: {args.source.upper()}\n\n")
+                f.write("---\n\n")
+                for turn in chat_history:
+                    role = turn["role"].upper()
+                    content = turn["content"]
+                    f.write(f"### 👤 {role}\n\n{content}\n\n")
+            print_console(f"Chat history saved to {C.bold}{C.green}{filepath}{C.reset}")
+        except Exception as e:
+            print_console(f"Error saving history: {e}")
         continue
 
     if user_input.lower().startswith('/temperature'):
@@ -202,10 +301,11 @@ while True:
     if not user_input:
         continue
 
-    # Add User message to the conversation
+    # Add User message to the conversation and history
     conversation_tokens.append(user_start)
     conversation_tokens.extend(tokenizer.encode(user_input))
     conversation_tokens.append(user_end)
+    chat_history.append({"role": "user", "content": user_input})
 
     # Kick off the assistant
     conversation_tokens.append(assistant_start)
@@ -216,16 +316,28 @@ while True:
         "top_k": args.top_k,
     }
     response_tokens = []
+    response_text_list = []
     print_assistant_header()
-    for token_column, token_masks in engine.generate(conversation_tokens, **generate_kwargs):
-        token = token_column[0] # pop the batch dimension (num_samples=1)
-        response_tokens.append(token)
-        if token == assistant_end:
-            break
-        token_text = tokenizer.decode([token])
-        print(token_text, end="", flush=True)
-    print()
+    renderer = CodeBlockState()
+    try:
+        for token_column, token_masks in engine.generate(conversation_tokens, **generate_kwargs):
+            token = token_column[0] # pop the batch dimension (num_samples=1)
+            response_tokens.append(token)
+            if token == assistant_end:
+                break
+            token_text = tokenizer.decode([token])
+            response_text_list.append(token_text)
+            print(renderer.feed(token_text), end="", flush=True)
+    except KeyboardInterrupt:
+        print(f"\n{C.orange}[Generation interrupted by user]{C.reset}")
+    finally:
+        print(renderer.flush(), end="", flush=True)
     print_footer()
+
+    # Accumulate full text for the chat history
+    assistant_response = "".join(response_text_list).strip()
+    chat_history.append({"role": "assistant", "content": assistant_response})
+
     # we have to ensure that the assistant end token is the last token
     # so even if generation ends due to max tokens, we have to append it to the end
     if not response_tokens or response_tokens[-1] != assistant_end:
