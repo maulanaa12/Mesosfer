@@ -189,8 +189,8 @@ ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type
 try:
     model, tokenizer, meta = load_model(args.source, device, phase="eval", model_tag=args.model_tag, step=args.step)
 except FileNotFoundError as e:
-    if args.source == "sft":
-        print(f"\n{C.orange}⚠️  SFT checkpoint not found: {e}{C.reset}")
+    if args.source in ["sft", "rl"]:
+        print(f"\n{C.orange}⚠️  {args.source.upper()} checkpoint not found: {e}{C.reset}")
         print(f"{C.purple}Falling back to 'base' model...{C.reset}\n")
         args.source = "base"
         model, tokenizer, meta = load_model("base", device, phase="eval", model_tag=args.model_tag, step=args.step)
