@@ -96,7 +96,7 @@ parser.add_argument("--instruction-following-epochs", type=int, default=4, help=
 parser.add_argument("--instruction-polish-only", action="store_true", help="train only on local identity/rules/instruction-following polish data")
 parser.add_argument("--safety-artifact-epochs", type=int, default=4, help="epochs of safety_artifact_conversations_en.jsonl (artifact-vs-attack boundary)")
 parser.add_argument("--safety-artifact-only", action="store_true", help="train only on local identity/rules/safety-artifact boundary data")
-parser.add_argument("--save-every", type=int, default=-1, help="save intermediate checkpoint every N steps (-1 = only at end)")
+parser.add_argument("--save-every", type=int, default=200, help="save intermediate checkpoint every N steps (-1 = only at end)")
 args = parser.parse_args()
 user_config = vars(args).copy()
 # -----------------------------------------------------------------------------
