@@ -185,7 +185,17 @@ def print_console(message):
 
 device_type = autodetect_device_type() if args.device_type == "" else args.device_type
 ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
-model, tokenizer, meta = load_model(args.source, device, phase="eval", model_tag=args.model_tag, step=args.step)
+
+try:
+    model, tokenizer, meta = load_model(args.source, device, phase="eval", model_tag=args.model_tag, step=args.step)
+except FileNotFoundError as e:
+    if args.source == "sft":
+        print(f"\n{C.orange}⚠️  SFT checkpoint not found: {e}{C.reset}")
+        print(f"{C.purple}Falling back to 'base' model...{C.reset}\n")
+        args.source = "base"
+        model, tokenizer, meta = load_model("base", device, phase="eval", model_tag=args.model_tag, step=args.step)
+    else:
+        raise e
 
 # Special tokens for the chat state machine
 bos = tokenizer.get_bos_token_id()
