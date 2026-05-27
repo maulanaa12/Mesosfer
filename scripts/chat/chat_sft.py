@@ -78,6 +78,7 @@ parser.add_argument("--cloud-security-epochs", type=int, default=20, help="epoch
 parser.add_argument("--multi-turn-soc-epochs", type=int, default=30, help="epochs of multi_turn_soc_sft (4 rows, oversampled)")
 parser.add_argument("--tool-oriented-epochs", type=int, default=20, help="epochs of tool_oriented_cyber_sft (8 rows, oversampled)")
 parser.add_argument("--mythos-epochs", type=int, default=4, help="epochs of mythos_combined_sft (110 rows × language)")
+parser.add_argument("--mythos-tool-calling-epochs", type=int, default=4, help="epochs of mythos_tool_calling (110 rows × language, native tool format)")
 parser.add_argument("--mesosfer-validation-epochs", type=int, default=2, help="epochs of mesosfer_validation_conversations (300 rows × language)")
 parser.add_argument("--gemini-teacher-epochs", type=int, default=2, help="epochs of gemini_teacher_conversations (373 rows)")
 parser.add_argument("--primus-instruct-epochs", type=int, default=1, help="epochs of Primus-Instruct (~100K rows, gated, 0=skip)")
@@ -90,9 +91,10 @@ parser.add_argument("--tiamz-cybersec-epochs", type=int, default=2, help="epochs
 parser.add_argument("--include-english-sft", type=int, default=1, help="1 = include _en variants of bilingual cybersec datasets, 0 = ID only")
 parser.add_argument("--disable-cybersec-sft", action="store_true", help="disable all cybersecurity SFT datasets (for ablation)")
 parser.add_argument("--rules-epochs", type=int, default=4, help="epochs of rules.jsonl (behavioral/safety/format rules)")
+parser.add_argument("--tool-calling-epochs", type=int, default=15, help="epochs of tool_calling_conversations_en.jsonl (tool-use with special tokens)")
 parser.add_argument("--instruction-following-epochs", type=int, default=4, help="epochs of instruction_following_conversations_en.jsonl (format/count/conciseness polish)")
 parser.add_argument("--instruction-polish-only", action="store_true", help="train only on local identity/rules/instruction-following polish data")
-parser.add_argument("--safety-artifact-epochs", type=int, default=0, help="epochs of safety_artifact_conversations_en.jsonl (artifact-vs-attack boundary)")
+parser.add_argument("--safety-artifact-epochs", type=int, default=4, help="epochs of safety_artifact_conversations_en.jsonl (artifact-vs-attack boundary)")
 parser.add_argument("--safety-artifact-only", action="store_true", help="train only on local identity/rules/safety-artifact boundary data")
 parser.add_argument("--save-every", type=int, default=-1, help="save intermediate checkpoint every N steps (-1 = only at end)")
 args = parser.parse_args()
@@ -272,7 +274,9 @@ elif not args.disable_cybersec_sft:
         cloud_security_epochs=args.cloud_security_epochs,
         multi_turn_soc_epochs=args.multi_turn_soc_epochs,
         tool_oriented_epochs=args.tool_oriented_epochs,
+        tool_calling_epochs=args.tool_calling_epochs,
         mythos_epochs=args.mythos_epochs,
+        mythos_tool_calling_epochs=args.mythos_tool_calling_epochs,
         mesosfer_validation_epochs=args.mesosfer_validation_epochs,
         gemini_teacher_epochs=args.gemini_teacher_epochs,
         primus_instruct_epochs=args.primus_instruct_epochs,

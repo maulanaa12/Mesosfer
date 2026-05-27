@@ -260,7 +260,7 @@ def flash_attn_with_kvcache(q, k_cache, v_cache, k=None, v=None, cache_seqlens=N
             q, k_cache, v_cache, k=k, v=v, cache_seqlens=cache_seqlens,
             causal=causal, window_size=window_size
         )
-    if ATTENTION_BACKEND == "fa2" and getattr(_fa2, "flash_attn_with_kvcache", None) is not None:
+    if ATTENTION_BACKEND == "fa2" and getattr(_fa2, "flash_attn_with_kvcache", None) is not None and not _is_rocm():
         return _fa2.flash_attn_with_kvcache(
             q, k_cache, v_cache, k=k, v=v, cache_seqlens=cache_seqlens,
             causal=causal, window_size=window_size
