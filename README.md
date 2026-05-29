@@ -77,8 +77,8 @@ Data preparation must be completed **before** training. Run these steps in order
 #### Step 2a — Download ClimbMix general pretraining data (~17 GB)
 
 ```bash
-# Download 170 shards of ClimbMix-400B (enough for depth 24 at ratio 10)
-python -m mesosfer.data.dataset -n 170
+# Download 170 shards of ClimbMix-400B (enough for depth 32 training)
+python scripts/data/prepare_data.py --download-climbmix 170
 ```
 
 #### Step 2b — Prepare cybersecurity dataset
@@ -87,13 +87,13 @@ Downloads and interleaves CVE feeds, HuggingFace cybersec datasets, and local fi
 Output: `~/.cache/mesosfer/base_data_cybersecurity/`
 
 ```bash
-python -m scripts.data.prepare_data
+python scripts/data/prepare_data.py
 
 # Check progress
-python -m scripts.data.prepare_data --status
+python scripts/data/prepare_data.py --status
 
 # Dry-run to preview sources
-python -m scripts.data.prepare_data --dry-run
+python scripts/data/prepare_data.py --dry-run
 ```
 
 > Steps 2a and 2b can run **in parallel** in separate terminals.
