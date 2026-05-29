@@ -2447,12 +2447,19 @@ def main():
     parser.add_argument("--download-workers", type=int, default=4,
                         help="Number of parallel download workers (default: 4)")
     args = parser.parse_args()
-
     base_dir = get_base_dir()
 
     if args.download_climbmix is not None:
         download_climbmix_shards(args.download_climbmix, args.download_workers)
         return
+
+    # Automatically ensure ClimbMix shards are present before preparing cybersecurity/code datasets
+    if not args.dry_run and not args.status:
+        climbmix_dir = os.path.join(base_dir, "base_data_climbmix")
+        existing_shards = [f for f in os.listdir(climbmix_dir) if f.endswith('.parquet')] if os.path.exists(climbmix_dir) else []
+        if len(existing_shards) < 171:
+            logger.info("  ℹ️ ClimbMix general pretraining shards not found or incomplete. Downloading baseline 170 shards automatically...")
+            download_climbmix_shards(170, args.download_workers)
 
     output_dir = os.path.join(base_dir, args.output_dir)
     os.makedirs(output_dir, exist_ok=True)
