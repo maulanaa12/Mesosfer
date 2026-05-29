@@ -2346,6 +2346,66 @@ def interleaved_shuffle_main(args, source_names, output_dir):
     verify_shard_balance(output_dir)
 
 
+def download_climbmix_shards(num_files, num_workers):
+    """
+    Downloads ClimbMix general pretraining shards directly from HuggingFace.
+    This replaces the legacy mesosfer.data.dataset downloading CLI to unify all downloads.
+    """
+    import requests
+    from concurrent.futures import ThreadPoolExecutor
+
+    base_dir = get_base_dir()
+    climbmix_dir = os.path.join(base_dir, "base_data_climbmix")
+    os.makedirs(climbmix_dir, exist_ok=True)
+
+    base_url = "https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle/resolve/main"
+    max_shard = 6542
+
+    num_train = max_shard if num_files == -1 else min(num_files, max_shard)
+    ids = list(range(num_train))
+    if max_shard not in ids:
+        ids.append(max_shard)  # Always download the validation shard
+
+    logger.info(f"Downloading {len(ids)} ClimbMix shards using {num_workers} parallel workers...")
+    logger.info(f"Target directory: {climbmix_dir}")
+
+    def download_shard(index):
+        filename = f"shard_{index:05d}.parquet"
+        filepath = os.path.join(climbmix_dir, filename)
+        if os.path.exists(filepath):
+            return True
+
+        url = f"{base_url}/{filename}"
+        temp_path = filepath + ".tmp"
+
+        for attempt in range(1, 6):
+            try:
+                response = requests.get(url, stream=True, timeout=30)
+                response.raise_for_status()
+                with open(temp_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            f.write(chunk)
+                os.replace(temp_path, filepath)
+                logger.info(f"Successfully downloaded {filename}")
+                return True
+            except Exception as e:
+                logger.warning(f"Attempt {attempt}/5 failed for {filename}: {e}")
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except:
+                        pass
+                time.sleep(2 ** attempt)
+        return False
+
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        results = list(executor.map(download_shard, ids))
+
+    successful = sum(1 for r in results if r)
+    logger.info(f"Done! Downloaded: {successful}/{len(ids)} shards to {climbmix_dir}")
+
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -2382,9 +2442,18 @@ def main():
     parser.add_argument("--sampling-temperature", type=float, default=1.2,
                         help="Temperature for domain sampling weights. "
                              ">1.0 = more uniform (reduces domain burst spikes), <1.0 = sharper (favor high-weight domains)")
+    parser.add_argument("--download-climbmix", type=int, default=None,
+                        help="Number of ClimbMix pretraining shards to download directly (e.g. 170)")
+    parser.add_argument("--download-workers", type=int, default=4,
+                        help="Number of parallel download workers (default: 4)")
     args = parser.parse_args()
 
     base_dir = get_base_dir()
+
+    if args.download_climbmix is not None:
+        download_climbmix_shards(args.download_climbmix, args.download_workers)
+        return
+
     output_dir = os.path.join(base_dir, args.output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
