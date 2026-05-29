@@ -83,29 +83,49 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 
-def _resolve_repo(cli_value: str | None) -> str:
+def _resolve_username(cli_value: str | None) -> str:
     """
-    Resolve the HF repo ID with this priority:
-      1. --repo CLI flag (explicit)
-      2. HF_REPO env var / .env file
-      3. Prompt the user interactively
-    Never falls back to a hardcoded username.
+    Resolve the HF username with this priority:
+      1. Explicit username from CLI (if user passed full repo, extract username)
+      2. HF_USERNAME env var / .env file
+      3. Extract from HF_REPO in env (e.g. johndoe/mesosfer-checkpoints -> johndoe)
+      4. Auto-detect from active HF login whoami
+      5. Prompt the user interactively
     """
     if cli_value:
+        if "/" in cli_value:
+            return cli_value.split("/")[0]
         return cli_value
+
+    env_username = os.environ.get("HF_USERNAME", "").strip()
+    if env_username and "your_hf_username" not in env_username:
+        return env_username
+
     env_repo = os.environ.get("HF_REPO", "").strip()
-    if env_repo and "your_hf_username" not in env_repo:
-        return env_repo
-    # Interactive fallback
-    warn("HF_REPO is not set. Set it in .env or pass --repo.")
+    if env_repo and "your_hf_username" not in env_repo and "/" in env_repo:
+        return env_repo.split("/")[0]
+
+    # Auto-detect via HfApi
     try:
-        repo = input("  Enter HF repo (e.g. johndoe/mesosfer-checkpoints): ").strip()
+        from huggingface_hub import HfApi
+        token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        api = HfApi(token=token)
+        user = api.whoami()
+        if "name" in user:
+            return user["name"]
+    except Exception:
+        pass
+
+    # Interactive fallback
+    warn("HF_USERNAME is not set in .env and auto-detect failed.")
+    try:
+        username = input("  Enter your Hugging Face username (e.g. mesosfer): ").strip()
     except (KeyboardInterrupt, EOFError):
-        repo = ""
-    if not repo:
-        err("ERROR: No repo specified. Aborting.")
+        username = ""
+    if not username:
+        err("ERROR: No Hugging Face username specified. Aborting.")
         sys.exit(1)
-    return repo
+    return username
 
 
 # Files that make up the tokenizer artifact (mirrors tok_train.py output)
@@ -399,7 +419,7 @@ def upload_step(api, step: int, ckpt_dir: Path, repo: str, depth: str, source: s
 # ── Tokenizer upload ──────────────────────────────────────────────────────────
 
 def upload_tokenizer(api, base_dir: str, repo: str) -> None:
-    """Upload tokenizer.pkl + token_bytes.pt to <repo>/tokenizer/."""
+    """Upload tokenizer.pkl + token_bytes.pt to <repo>/ (Dedicated Tokenizer Repo)."""
     tokenizer_dir = Path(base_dir) / "tokenizer"
     if not tokenizer_dir.exists():
         err(f"ERROR: Tokenizer directory not found: {tokenizer_dir}")
@@ -407,7 +427,7 @@ def upload_tokenizer(api, base_dir: str, repo: str) -> None:
         return
 
     info(f"\nTokenizer dir: {tokenizer_dir}")
-    info(f"Repo:          {repo}/tokenizer/\n")
+    info(f"Repo:          {repo}/\n")
 
     uploaded = 0
     for filename in TOKENIZER_FILES:
@@ -416,10 +436,10 @@ def upload_tokenizer(api, base_dir: str, repo: str) -> None:
             warn(f"  SKIP: {filename} not found in {tokenizer_dir}")
             continue
         size_mb = filepath.stat().st_size / (1024 * 1024)
-        info(f"  Uploading {filename} ({size_mb:.2f} MB) → tokenizer/{filename}")
+        info(f"  Uploading {filename} ({size_mb:.2f} MB) → {filename}")
         api.upload_file(
             path_or_fileobj=str(filepath),
-            path_in_repo=f"tokenizer/{filename}",
+            path_in_repo=f"{filename}",
             repo_id=repo,
             repo_type="model",
         )
@@ -429,7 +449,7 @@ def upload_tokenizer(api, base_dir: str, repo: str) -> None:
     if uploaded == 0:
         err(f"\nNo tokenizer files found in {tokenizer_dir}.")
     else:
-        success(f"\nDone! {uploaded}/{len(TOKENIZER_FILES)} tokenizer file(s) uploaded to {repo}/tokenizer/")
+        success(f"\nDone! {uploaded}/{len(TOKENIZER_FILES)} tokenizer file(s) uploaded to {repo}/")
 
 
 # ── Dataset upload ────────────────────────────────────────────────────────────
@@ -489,13 +509,13 @@ def upload_dataset(api, base_dir: str, repo: str, dataset_names: list[str] | Non
             grand_missing += 1
             continue
 
-        repo_prefix = f"dataset/{dir_name}"
-        info(f"\n  [{dir_name}]  {len(parquets)} shard(s) → {repo}/dataset/{dir_name}/")
+        repo_prefix = f"{dir_name}"
+        info(f"\n  [{dir_name}]  {len(parquets)} shard(s) → {repo}/{dir_name}/")
 
         uploaded = skipped = 0
         for i, filepath in enumerate(parquets, 1):
             repo_path = f"{repo_prefix}/{filepath.name}"
-            if repo_path in existing_in_repo:
+            if repo_path in existing_in_repo or f"dataset/{repo_path}" in existing_in_repo:
                 info(f"    [{i}/{len(parquets)}] SKIP {filepath.name} (already in repo)")
                 skipped += 1
                 continue
@@ -522,7 +542,7 @@ def upload_dataset(api, base_dir: str, repo: str, dataset_names: list[str] | Non
             f"Dataset upload complete: {grand_uploaded} uploaded, "
             f"{grand_skipped} skipped (already in repo)"
         )
-        success(f"Repo: {repo}/dataset/")
+        success(f"Repo: {repo}/")
 
 
 # ── Interactive model option prompts ─────────────────────────────────────────
@@ -586,7 +606,8 @@ def _hf_login(repo: str) -> object | None:
         err("ERROR: huggingface_hub is not installed. Run: pip install huggingface_hub")
         return None
 
-    api = HfApi()
+    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    api = HfApi(token=token)
     try:
         user = api.whoami()
         success(f"Logged in as: {user['name']}")
@@ -628,8 +649,8 @@ def main():
                      help="Upload the latest checkpoint (highest step)")
     sel.add_argument("--list", action="store_true",
                      help="List local checkpoints and exit")
-    g.add_argument("--depth", type=str, default="d24",
-                   help="Model depth tag (default: d24)")
+    g.add_argument("--depth", type=str, default="d32",
+                   help="Model depth tag (default: d32)")
     g.add_argument("--source", type=str, default="base", choices=["base", "sft", "rl"],
                    help="Checkpoint source: base | sft | rl (default: base)")
     g.add_argument("--model-only", action="store_true",
@@ -651,8 +672,8 @@ def main():
 
     base_dir = args.base_dir or os.path.expanduser("~/.cache/mesosfer")
 
-    # Resolve repo — env var / .env / interactive prompt
-    args.repo = _resolve_repo(args.repo)
+    # Resolve HF username
+    username = _resolve_username(args.repo)
 
     # ── Determine artifact via top-level menu if not given by flag ────────────
     model_flags_given = bool(args.step or args.best or args.latest or args.list)
@@ -670,6 +691,14 @@ def main():
     elif args.artifact is None:
         # Legacy: model flags given without --artifact → default to model
         args.artifact = "model"
+
+    # Hardcode repo path depending on artifact type
+    if args.artifact == "model":
+        args.repo = f"{username}/model"
+    elif args.artifact == "tokenizer":
+        args.repo = f"{username}/tokenizer"
+    elif args.artifact == "dataset":
+        args.repo = f"{username}/dataset"
 
     # ── HF login (shared for all artifacts) ──────────────────────────────────
     api = _hf_login(args.repo)

@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 def _load_env_file():
-    env_path = Path(__file__).resolve().parent.parent / ".env"
+    env_path = Path(__file__).resolve().parents[2] / ".env"
     if not env_path.exists():
         return
     with open(env_path, encoding="utf-8") as f:
@@ -394,7 +394,7 @@ def _source_to_dataset_config(source):
 # =============================================================================
 
 DOMAIN_SAMPLING_WEIGHTS = {
-    # Cybersecurity — high priority
+    # Cybersecurity — high priority (~45% effective share)
     "trendyol_cyber":          1.9,
     "all_cve_records":         1.8,
     "circl_vuln_patch":        2.3,
@@ -424,11 +424,14 @@ DOMAIN_SAMPLING_WEIGHTS = {
     "elastic_rules":           1.6,
     "splunk_rules":            1.5,
     "zeek_scripts":            1.5,
-    # General knowledge — retained but capped so it supports broad ability
+    "brightdata_cybersec":     2.0,  # Real-time threat intel via BrightData Proxy/API
+    "primus_seed":             2.2,  # Trend Micro curated cybersecurity seed corpus
+    "primus_reasoning":        2.0,  # Cybersecurity chain-of-thought reasoning
+    # General knowledge — retained but capped so it supports broad ability (~10%)
     "climbmix":                0.6,  # very large, keep proportion down
     "wikipedia":               0.5,  # huge corpus, don't let it dominate
     "fineweb_edu":             0.7,
-    # Code — important for secure coding, but not allowed to dominate
+    # Code — important for secure coding (~30% effective share)
     "secure_code_python":      1.4,
     "secure_code_c":           1.4,
     "secure_code_cpp":         1.2,
@@ -438,9 +441,11 @@ DOMAIN_SAMPLING_WEIGHTS = {
     "metasploit":              1.7,
     "exploitdb":               1.8,
     "swallow_code_v2":         1.3,
-    # Instruction / reasoning
+    "code_feedback":           1.5,  # Multi-language coding feedback & instruction
+    # Instruction / reasoning (~15% effective share)
     "openhermes":              0.9,
     "finemath":                0.9,
+    "numinamath_cot":          1.1,  # Competition math with chain-of-thought
 }
 
 # =============================================================================
@@ -458,7 +463,7 @@ DATASET_SOURCES = {
         "hf_name": "Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset",
         "description": "Cybersecurity instruction tuning dataset",
         "category": "cybersecurity",
-        "max_tokens": 200_000_000,
+        "max_tokens": 2_400_000_000,
         "text_column": None,
         "split": "train",
         "streaming": False,
@@ -468,7 +473,7 @@ DATASET_SOURCES = {
         "source_type": "nvd_json_feeds",
         "description": "NVD CVE 2.0 JSON feeds, yearly bootstrap from 2002-current",
         "category": "cybersecurity",
-        "max_tokens": 500_000_000,
+        "max_tokens": 6_000_000_000,
         "start_year": 2002,
         "end_year": None,
     },
@@ -476,7 +481,7 @@ DATASET_SOURCES = {
         "hf_name": "CIRCL/vulnerability-cwe-patch",
         "description": "39K vulns with real patches from GitHub/GitLab",
         "category": "cybersecurity",
-        "max_tokens": 200_000_000,
+        "max_tokens": 2_400_000_000,
         "text_column": None,
         "split": "train",
         "streaming": False,
@@ -486,7 +491,7 @@ DATASET_SOURCES = {
         "hf_name": "ethanolivertroy/nist-cybersecurity-training",
         "description": "NIST cybersecurity documents",
         "category": "cybersecurity",
-        "max_tokens": 400_000_000,
+        "max_tokens": 4_800_000_000,
         "text_column": None,
         "split": "train",
         "streaming": True,
@@ -497,7 +502,7 @@ DATASET_SOURCES = {
         "hf_name": "AlicanKiraz0/Cybersecurity-Dataset-Fenrir-v2.1",
         "description": "99K high-quality cybersec Q&A, OWASP/MITRE/NIST mapped",
         "category": "cybersecurity",
-        "max_tokens": 200_000_000,
+        "max_tokens": 2_400_000_000,
         "text_column": None,
         "split": "train",
         "streaming": False,
@@ -507,7 +512,7 @@ DATASET_SOURCES = {
         "hf_name": "trend-cybertron/Primus-Nemotron-CC",
         "description": "7.6B tokens of cybersecurity text filtered from Nemotron-CC (gated, requires HF token)",
         "category": "cybersecurity",
-        "max_tokens": 1_500_000_000,
+        "max_tokens": 7_600_000_000,
         "text_column": "text",
         "split": "train",
         "streaming": True,
@@ -516,7 +521,7 @@ DATASET_SOURCES = {
         "hf_name": "trendmicro-ailab/Primus-FineWeb",
         "description": "Cybersecurity-filtered FineWeb pretraining corpus (gated, requires HF token)",
         "category": "cybersecurity",
-        "max_tokens": 800_000_000,
+        "max_tokens": 5_000_000_000,
         "text_column": "text",
         "split": "train",
         "streaming": True,
@@ -525,7 +530,7 @@ DATASET_SOURCES = {
         "hf_name": "CyberNative/Code_Vulnerability_Security_DPO",
         "description": "Synthetic vulnerable vs fixed code pairs across many languages",
         "category": "cybersecurity",
-        "max_tokens": 30_000_000,
+        "max_tokens": 360_000_000,
         "text_column": None,
         "split": "train",
         "streaming": False,
@@ -535,7 +540,7 @@ DATASET_SOURCES = {
         "source_type": "circl_ndjson_dump",
         "description": "CIRCL Vulnerability-Lookup CVE List v5 dump",
         "category": "cybersecurity",
-        "max_tokens": 400_000_000,
+        "max_tokens": 4_800_000_000,
         "dump_url": "https://vulnerability.circl.lu/dumps/cvelistv5.ndjson",
     },
     # =========================================================================
@@ -545,21 +550,21 @@ DATASET_SOURCES = {
         "source_type": "local_files",
         "description": "Local incident response reports and runbooks",
         "category": "cybersecurity",
-        "max_tokens": 120_000_000,
+        "max_tokens": 1_440_000_000,
         "local_paths": ["data/synthetic-ir/*.jsonl"],
     },
     "local_soc_synthetic": {
         "source_type": "local_files",
         "description": "Local synthetic SOC analyst conversations and cases",
         "category": "cybersecurity",
-        "max_tokens": 120_000_000,
+        "max_tokens": 1_440_000_000,
         "local_paths": ["data/synthetic-soc/*.jsonl"],
     },
     "local_reverse_engineering": {
         "source_type": "local_files",
         "description": "Local reverse engineering and exploitation analysis",
         "category": "cybersecurity",
-        "max_tokens": 100_000_000,
+        "max_tokens": 1_200_000_000,
         "local_paths": ["data/reverse-engineering/*.jsonl"],
     },
     "local_cloud_security": {
@@ -570,7 +575,7 @@ DATASET_SOURCES = {
         # Output goes to data/cloud_nl/*.jsonl — use that path here.
         "description": "Local AWS, Azure, and GCP audit/security events (NL narratives)",
         "category": "cybersecurity",
-        "max_tokens": 100_000_000,
+        "max_tokens": 1_200_000_000,
         "local_paths": ["data/cloud_nl/*.jsonl"],
     },
     "local_security_logs": {
@@ -581,7 +586,7 @@ DATASET_SOURCES = {
         # Output goes to data/log_nl/*.jsonl — use that path here.
         "description": "Local auth, web, Windows, Sysmon, CEF, and network security logs (NL narratives)",
         "category": "cybersecurity",
-        "max_tokens": 100_000_000,
+        "max_tokens": 1_200_000_000,
         "local_paths": [
             "data/log_nl/*.jsonl",
         ],
@@ -593,7 +598,7 @@ DATASET_SOURCES = {
         "hf_name": "karpathy/climbmix-400b-shuffle",
         "description": "High-quality general pretraining data",
         "category": "general",
-        "max_tokens": 900_000_000,
+        "max_tokens": 5_000_000_000,
         "text_column": "text",
         "split": "train",
         "streaming": True,
@@ -602,7 +607,7 @@ DATASET_SOURCES = {
         "hf_name": "wikimedia/wikipedia",
         "description": "English Wikipedia articles",
         "category": "general",
-        "max_tokens": 500_000_000,
+        "max_tokens": 3_000_000_000,
         "text_column": "text",
         "split": "train",
         "streaming": True,
@@ -612,7 +617,7 @@ DATASET_SOURCES = {
         "hf_name": "HuggingFaceFW/fineweb-edu",
         "description": "Educational web content",
         "category": "general",
-        "max_tokens": 600_000_000,
+        "max_tokens": 4_000_000_000,
         "text_column": "text",
         "split": "train",
         "streaming": True,
@@ -622,7 +627,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "Python security-related repositories",
     "category": "code",
-    "max_tokens": 500_000_000,
+    "max_tokens": 6_000_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -633,7 +638,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "C security-related repositories",
     "category": "code",
-    "max_tokens": 350_000_000,
+    "max_tokens": 4_200_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -644,7 +649,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "C++ security-related repositories",
     "category": "code",
-    "max_tokens": 400_000_000,
+    "max_tokens": 4_800_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -655,7 +660,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "Rust security-related repositories",
     "category": "code",
-    "max_tokens": 300_000_000,
+    "max_tokens": 3_600_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -666,7 +671,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "Go security-related repositories",
     "category": "code",
-    "max_tokens": 300_000_000,
+    "max_tokens": 3_600_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -677,7 +682,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "Shell security-related repositories",
     "category": "code",
-    "max_tokens": 250_000_000,
+    "max_tokens": 3_000_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -693,7 +698,7 @@ DATASET_SOURCES = {
     "hf_name": "tokyotech-llm/swallow-code-v2",
     "description": "High-quality Python code from The-Stack-v2, refined via 4-stage LLM pipeline (TokyoTech, Apache-2.0)",
     "category": "code",
-    "max_tokens": 800_000_000,
+    "max_tokens": 8_000_000_000,
     "text_column": "text",
     "split": "train",
     "streaming": True,
@@ -704,7 +709,7 @@ DATASET_SOURCES = {
     "hf_name": "teknium/OpenHermes-2.5",
     "description": "High-quality conversational instruction tuning",
     "category": "instruction",
-    "max_tokens": 350_000_000,
+    "max_tokens": 4_200_000_000,
     "text_column": None,
     "split": "train",
     "streaming": True,
@@ -716,10 +721,66 @@ DATASET_SOURCES = {
     "hf_subset": "finemath-4plus",
     "description": "Mathematical reasoning corpus",
     "category": "instruction",
-    "max_tokens": 250_000_000,
+    "max_tokens": 3_000_000_000,
     "text_column": "text",
     "split": "train",
     "streaming": True,
+},
+
+# =========================================================================
+# NEW DATASETS (Depth 32 branch — replacing 404'd sources)
+# =========================================================================
+"primus_seed": {
+    "hf_name": "trendmicro-ailab/Primus-Seed",
+    "description": "Curated cybersecurity seed corpus from Trend Micro AI Lab (Wikipedia, MITRE, NIST, security blogs)",
+    "category": "cybersecurity",
+    "max_tokens": 2_000_000_000,
+    "text_column": "text",
+    "split": "train",
+    "streaming": True,
+},
+
+"primus_reasoning": {
+    "hf_name": "trendmicro-ailab/Primus-Reasoning",
+    "description": "Cybersecurity chain-of-thought reasoning distilled from o1-preview and DeepSeek-R1",
+    "category": "cybersecurity",
+    "max_tokens": 1_500_000_000,
+    "text_column": "text",
+    "split": "train",
+    "streaming": True,
+},
+
+"numinamath_cot": {
+    "hf_name": "AI-MO/NuminaMath-CoT",
+    "description": "860K+ competition math problems with chain-of-thought solutions for multi-step reasoning",
+    "category": "instruction",
+    "max_tokens": 3_000_000_000,
+    "text_column": None,
+    "split": "train",
+    "streaming": True,
+    "format": "instruction",  # Changed to instruction for robust custom formatting
+},
+
+"code_feedback": {
+    "hf_name": "m-a-p/Code-Feedback",
+    "description": "Multi-language coding feedback and instruction pairs for strengthening code comprehension",
+    "category": "code",
+    "max_tokens": 3_000_000_000,
+    "text_column": None,
+    "split": "train",
+    "streaming": True,
+    "format": "messages",
+},
+
+"brightdata_cybersec": {
+    "source_type": "brightdata_scraper",
+    "description": "Real-time threat intel and secure coding blogs scraped via BrightData API/Proxy",
+    "category": "cybersecurity",
+    "max_tokens": 500_000_000,
+    "target_urls": [
+        "https://googleprojectzero.blogspot.com/",
+        "https://thedfirreport.com/",
+    ],
 },
 }
 
@@ -756,8 +817,8 @@ def format_instruction_row(row, filter_keywords=None):
     messages_text = format_messages_row(row)
     if messages_text:
         return messages_text
-    user_text = row.get("instruction", row.get("question", row.get("user", row.get("User", row.get("prompt", "")))))
-    bot_text = row.get("response", row.get("answer", row.get("assistant", row.get("Assistant", row.get("output", "")))))
+    user_text = row.get("instruction", row.get("question", row.get("user", row.get("User", row.get("prompt", row.get("problem", row.get("query", row.get("input", ""))))))))
+    bot_text = row.get("response", row.get("answer", row.get("assistant", row.get("Assistant", row.get("output", row.get("solution", row.get("code", "")))))))
     if not user_text or not bot_text:
         return None
     return f"{user_text}\n\n{bot_text}"
@@ -828,10 +889,13 @@ def _coerce_text(value):
 
 def format_messages_row(row):
     messages = None
-    for key in ("messages", "conversations", "conversation", "dialogue", "chat"):
-        if key in row:
-            messages = row.get(key)
-            break
+    if isinstance(row, list):
+        messages = row
+    elif isinstance(row, dict):
+        for key in ("messages", "conversations", "conversation", "dialogue", "chat"):
+            if key in row:
+                messages = row.get(key)
+                break
     if messages is None:
         return None
     if isinstance(messages, str):
@@ -1646,6 +1710,78 @@ def stream_github_repo_texts(source_name, source_config, max_chars):
     logger.info(f"  ✓ {source_name} github_repo complete: {doc_count:,} docs, ~{est_tokens:,} tokens")
 
 
+def stream_brightdata_scraper_texts(source_name, source_config, max_chars):
+    """
+    Stream real-time cybersecurity or coding documentation using BrightData API / Proxy.
+    Loads API credentials directly from environment variables (.env).
+    """
+    api_key = os.environ.get("BRIGHTDATA_API_KEY")
+    proxy_url = os.environ.get("BRIGHTDATA_PROXY_URL")
+
+    if not api_key and not proxy_url:
+        logger.warning(
+            f"  ⚠ BrightData credentials not found in .env (BRIGHTDATA_API_KEY or BRIGHTDATA_PROXY_URL). "
+            f"Skipping {source_name}."
+        )
+        return
+
+    logger.info(f"  🚀 Starting BrightData scraping for {source_name}...")
+    target_urls = source_config.get("target_urls", [])
+    if not target_urls:
+        logger.warning(f"  No target_urls configured for BrightData source {source_name}.")
+        return
+
+    char_count = 0
+    doc_count = 0
+
+    for url in target_urls:
+        logger.info(f"  [BrightData] Scraping {url} via proxy/API...")
+        try:
+            if proxy_url:
+                proxy_handler = urllib.request.ProxyHandler({'http': proxy_url, 'https': proxy_url})
+                opener = urllib.request.build_opener(proxy_handler)
+            else:
+                opener = urllib.request.build_opener()
+
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Authorization": f"Bearer {api_key}" if api_key else ""
+                }
+            )
+
+            with opener.open(req, timeout=120) as response:
+                html = response.read().decode('utf-8', errors='replace')
+
+            import re
+            text_content = re.sub(r'<script.*?>.*?</script>', '', html, flags=re.DOTALL)
+            text_content = re.sub(r'<style.*?>.*?</style>', '', text_content, flags=re.DOTALL)
+            text_content = re.sub(r'<.*?>', '', text_content)
+            text_content = re.sub(r'\s+', ' ', text_content).strip()
+
+            if len(text_content) < 100:
+                continue
+
+            labeled = f"# Source: BrightData Scraper ({url})\n\n{text_content}"
+            if not is_high_quality_security_text(labeled, source_name):
+                continue
+
+            char_count += len(labeled)
+            doc_count += 1
+            yield labeled
+
+            if char_count >= max_chars:
+                break
+
+        except Exception as e:
+            logger.warning(f"  [BrightData] Failed to scrape {url}: {e}")
+            continue
+
+    est_tokens = int(char_count / CHARS_PER_TOKEN)
+    logger.info(f"  ✓ {source_name} complete: {doc_count:,} docs, ~{est_tokens:,} tokens")
+
+
 def stream_dataset_texts(source_name, source_config, global_max_tokens=None, skip_docs=0):
     max_tokens = source_config.get("max_tokens")
     if global_max_tokens is not None and max_tokens is not None:
@@ -1655,6 +1791,9 @@ def stream_dataset_texts(source_name, source_config, global_max_tokens=None, ski
     max_chars = int(max_tokens * CHARS_PER_TOKEN) if max_tokens else float('inf')
 
     source_type = source_config.get("source_type")
+    if source_type == "brightdata_scraper":
+        yield from stream_brightdata_scraper_texts(source_name, source_config, max_chars)
+        return
     if source_type == "nvd_json_feeds":
         yield from stream_nvd_feed_texts(source_name, source_config, max_chars)
         return
@@ -2148,9 +2287,11 @@ def interleaved_shuffle_main(args, source_names, output_dir):
 
     # Summary
     print()
-    print("=" * 70)
-    print("  INTERLEAVED SHUFFLE SUMMARY")
-    print("=" * 70)
+    print("=" * 85)
+    print("  INTERLEAVED SHUFFLE SUMMARY (RINGKASAN DATA PRETRAINING)")
+    print("=" * 85)
+    print(f"  {'Source (Sumber)':28s} | {'Weight':>6s} | {'Rows/Docs (Baris)':>18s} | {'Est. Tokens (Token)':>22s}")
+    print("-" * 85)
     total_docs = 0
     total_chars = 0
     for source_name in source_names:
@@ -2161,11 +2302,13 @@ def interleaved_shuffle_main(args, source_names, output_dir):
         cat = DATASET_SOURCES[source_name]["category"]
         emoji = _category_emoji(cat)
         weight = DOMAIN_SAMPLING_WEIGHTS.get(source_name, 1.0)
-        print(f"  {emoji} {source_name:25s} | w={weight:.1f} | {s['docs']:>10,} docs | ~{est_tokens:>12,} tokens")
+        source_label = f"{emoji} {source_name}"
+        print(f"  {source_label:28s} | w={weight:.1f} | {s['docs']:18,} | {est_tokens:22,}")
 
     total_tokens = int(total_chars / CHARS_PER_TOKEN)
-    print(f"  {'─'*70}")
-    print(f"  {'TOTAL':25s} |      | {total_docs:>10,} docs | ~{total_tokens:>12,} tokens")
+    print("-" * 85)
+    print(f"  {'TOTAL':28s} |      | {total_docs:18,} | {total_tokens:22,}")
+    print("-" * 85)
     print(f"  Shards written: {shard_idx}")
     print(f"  Output directory: {output_dir}")
     print(f"  Time elapsed: {elapsed/60:.1f} minutes")
@@ -2217,8 +2360,8 @@ def main():
                         help="Number of documents per shard")
     parser.add_argument("--sources", type=str, default=None,
                         help="Comma-separated list of sources to download")
-    parser.add_argument("--val-ratio", type=float, default=0.02,
-                        help="Fraction of data to use for validation")
+    parser.add_argument("--val-ratio", type=float, default=0.008,
+                        help="Fraction of data to use for validation (0.8%% optimal for 100B+ token runs)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Only show what would be downloaded, don't actually download")
     parser.add_argument("--status", action="store_true",
@@ -2446,9 +2589,11 @@ def main():
     elapsed = time.time() - t0
 
     print()
-    print("=" * 70)
-    print("  SUMMARY")
-    print("=" * 70)
+    print("=" * 76)
+    print("  PRETRAINING DATA SUMMARY (RINGKASAN DATA PRETRAINING)")
+    print("=" * 76)
+    print(f"  {'Source (Sumber)':28s} | {'Rows/Docs (Baris)':>18s} | {'Est. Tokens (Token)':>22s}")
+    print("-" * 76)
     total_docs = 0
     total_chars = 0
     for source_name in source_names:
@@ -2458,11 +2603,13 @@ def main():
         total_chars += s["chars"]
         cat = DATASET_SOURCES[source_name]["category"]
         emoji = _category_emoji(cat)
-        print(f"  {emoji} {source_name:25s} | {s['docs']:>10,} docs | ~{est_tokens:>12,} tokens")
+        source_label = f"{emoji} {source_name}"
+        print(f"  {source_label:28s} | {s['docs']:18,} | {est_tokens:22,}")
 
     total_tokens = int(total_chars / CHARS_PER_TOKEN)
-    print(f"  {'─'*65}")
-    print(f"  {'TOTAL':25s} | {total_docs:>10,} docs | ~{total_tokens:>12,} tokens")
+    print("-" * 76)
+    print(f"  {'TOTAL':28s} | {total_docs:18,} | {total_tokens:22,}")
+    print("-" * 76)
     print(f"  Shards written: {shard_idx}")
     print(f"  Output directory: {output_dir}")
     print(f"  Time elapsed: {elapsed/60:.1f} minutes")

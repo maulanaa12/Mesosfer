@@ -57,6 +57,7 @@ SOURCES = {
     # -------------------------------------------------------------------------
     # Primus-Instruct (gated — requires HF token + accept terms)
     # ~100K high-quality cybersecurity instruction pairs from Trend Micro
+    # HF Link: https://huggingface.co/datasets/trendmicro-ailab/Primus-Instruct
     "primus_instruct": {
         "hf_name": "trendmicro-ailab/Primus-Instruct",
         "split": "train",
@@ -69,6 +70,7 @@ SOURCES = {
     # -------------------------------------------------------------------------
     # Primus-Reasoning (gated — requires HF token + accept terms)
     # Reasoning distillation from o1-preview on cybersecurity tasks
+    # HF Link: https://huggingface.co/datasets/trendmicro-ailab/Primus-Reasoning
     "primus_reasoning": {
         "hf_name": "trendmicro-ailab/Primus-Reasoning",
         "split": "train",
@@ -81,6 +83,7 @@ SOURCES = {
     # -------------------------------------------------------------------------
     # CyberNative Code Vulnerability DPO
     # 4.6K vulnerable vs fixed code pairs — convert to instruction format
+    # HF Link: https://huggingface.co/datasets/CyberNative/Code_Vulnerability_Security_DPO
     "cybernative_vuln_dpo": {
         "hf_name": "CyberNative/Code_Vulnerability_Security_DPO",
         "split": "train",
@@ -93,6 +96,7 @@ SOURCES = {
     # -------------------------------------------------------------------------
     # OpenHermes-2.5 (general instruction, includes security/coding)
     # Large dataset — we cap at 50K rows to avoid dominating the SFT mix
+    # HF Link: https://huggingface.co/datasets/teknium/OpenHermes-2.5
     "openhermes": {
         "hf_name": "teknium/OpenHermes-2.5",
         "split": "train",
@@ -104,6 +108,7 @@ SOURCES = {
     },
     # -------------------------------------------------------------------------
     # UltraChat 200K — high-quality multi-turn conversations
+    # HF Link: https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k
     "ultrachat": {
         "hf_name": "HuggingFaceH4/ultrachat_200k",
         "split": "train_sft",
@@ -115,6 +120,7 @@ SOURCES = {
     },
     # -------------------------------------------------------------------------
     # Trendyol Cybersecurity Instruction Tuning — 53K rows, defensive cybersec
+    # HF Link: https://huggingface.co/datasets/Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset
     "trendyol_cyber_sft": {
         "hf_name": "Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset",
         "split": "train",
@@ -126,6 +132,7 @@ SOURCES = {
     },
     # -------------------------------------------------------------------------
     # Tiamz cybersecurity instruction dataset — 12K Q&A pairs
+    # HF Link: https://huggingface.co/datasets/Tiamz/cybersecurity-instruction-dataset
     "tiamz_cybersec": {
         "hf_name": "Tiamz/cybersecurity-instruction-dataset",
         "split": "train",
@@ -133,6 +140,18 @@ SOURCES = {
         "format": "instruction_answer",
         "output_file": "tiamz_cybersec_sft.jsonl",
         "max_rows": 15_000,
+        "gated": False,
+    },
+    # -------------------------------------------------------------------------
+    # Alpaca Cleaned Indonesian — ~52K clean Indonesian instruction-following rows
+    # HF Link: https://huggingface.co/datasets/ilhamfadheel/alpaca-cleaned-indonesian
+    "alpaca_indonesian": {
+        "hf_name": "ilhamfadheel/alpaca-cleaned-indonesian",
+        "split": "train",
+        "streaming": False,
+        "format": "alpaca",
+        "output_file": "alpaca_indonesian_sft.jsonl",
+        "max_rows": 55_000,
         "gated": False,
     },
 }
@@ -243,28 +262,59 @@ def convert_instruction_answer(row) -> list | None:
     ]
 
 
+def convert_alpaca(row) -> list | None:
+    """Handle standard Alpaca datasets with instruction, input, output columns."""
+    instruction = row.get("instruction") or ""
+    input_text = row.get("input") or ""
+    output = row.get("output") or ""
+    if not instruction or not output:
+        return None
+    if not isinstance(instruction, str) or not isinstance(output, str):
+        return None
+    user_content = instruction.strip()
+    if isinstance(input_text, str) and input_text.strip():
+        user_content = f"{user_content}\n\nInput:\n{input_text.strip()}"
+    return [
+        {"role": "user", "content": user_content},
+        {"role": "assistant", "content": output.strip()},
+    ]
+
+
 CONVERTERS = {
     "messages": convert_messages_format,
     "dpo_to_sft": convert_dpo_to_sft,
     "system_user_assistant": convert_system_user_assistant,
     "instruction_answer": convert_instruction_answer,
+    "alpaca": convert_alpaca,
 }
 
 # =============================================================================
 # Download logic
 # =============================================================================
 
-def download_source(name: str, config: dict, hf_token: str | None = None):
+def download_source(name: str, config: dict, hf_token: str | None = None) -> tuple[int, int]:
     output_path = SFT_DIR / config["output_file"]
 
     if output_path.exists():
-        existing = sum(1 for _ in open(output_path, encoding="utf-8"))
-        logger.info(f"  {name}: already exists ({existing:,} rows) — skipping. Delete to re-download.")
-        return existing
+        written = 0
+        char_count = 0
+        with open(output_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    messages = json.loads(line)
+                    written += 1
+                    char_count += sum(len(msg.get("content", "")) for msg in messages)
+                except Exception:
+                    pass
+        est_tokens = int(char_count / 4.0)
+        logger.info(f"  {name}: already exists ({written:,} rows, ~{est_tokens:,} tokens) — skipping. Delete to re-download.")
+        return written, est_tokens
 
     if config.get("gated") and not hf_token:
         logger.warning(f"  {name}: SKIPPED — gated dataset requires HF_TOKEN in environment")
-        return 0
+        return 0, 0
 
     hf_name = config["hf_name"]
     split = config.get("split", "train")
@@ -275,7 +325,7 @@ def download_source(name: str, config: dict, hf_token: str | None = None):
 
     if converter is None:
         logger.error(f"  {name}: unknown format '{fmt}'")
-        return 0
+        return 0, 0
 
     logger.info(f"  Downloading {hf_name} (split={split}, max={max_rows:,})...")
 
@@ -289,9 +339,10 @@ def download_source(name: str, config: dict, hf_token: str | None = None):
         ds = load_dataset(hf_name, split=split, **load_kwargs)
     except Exception as e:
         logger.error(f"  {name}: failed to load dataset — {e}")
-        return 0
+        return 0, 0
 
     written = 0
+    char_count = 0
     skipped = 0
     tmp_path = output_path.with_suffix(".tmp")
 
@@ -312,19 +363,21 @@ def download_source(name: str, config: dict, hf_token: str | None = None):
 
                 f.write(json.dumps(messages, ensure_ascii=False) + "\n")
                 written += 1
+                char_count += sum(len(msg.get("content", "")) for msg in messages)
 
                 if written % 10_000 == 0:
                     logger.info(f"    {name}: {written:,} rows written...")
 
         tmp_path.rename(output_path)
-        logger.info(f"  ✓ {name}: {written:,} rows written to {output_path.name} (skipped {skipped:,})")
-        return written
+        est_tokens = int(char_count / 4.0)
+        logger.info(f"  ✓ {name}: {written:,} rows written to {output_path.name} (~{est_tokens:,} tokens, skipped {skipped:,})")
+        return written, est_tokens
 
     except Exception as e:
         logger.error(f"  {name}: error during download — {e}")
         if tmp_path.exists():
             tmp_path.unlink()
-        return 0
+        return 0, 0
 
 
 # =============================================================================
@@ -362,13 +415,27 @@ def main():
         return
 
     total_written = 0
+    total_tokens = 0
+    summary_stats = []
+
     for name in sources_to_run:
         logger.info(f"\n[{name}]")
-        n = download_source(name, SOURCES[name], hf_token)
-        total_written += n
+        rows, tokens = download_source(name, SOURCES[name], hf_token)
+        total_written += rows
+        total_tokens += tokens
+        summary_stats.append((name, rows, tokens))
 
-    logger.info(f"\n✓ Done. Total rows written: {total_written:,}")
-    logger.info(f"Output directory: {SFT_DIR}")
+    print("\n" + "=" * 75)
+    print("  SFT DATASET PREPARATION SUMMARY (RINGKASAN DATASET SFT)")
+    print("=" * 75)
+    print(f"  {'Source (Sumber)':25s} | {'Rows (Baris)':>15s} | {'Est. Tokens (Token)':>22s}")
+    print("-" * 75)
+    for name, rows, tokens in summary_stats:
+        print(f"  {name:25s} | {rows:15,} | {tokens:22,}")
+    print("-" * 75)
+    print(f"  {'TOTAL':25s} | {total_written:15,} | {total_tokens:22,}")
+    print("=" * 75)
+    logger.info(f"Output directory: {SFT_DIR}\n")
 
 
 if __name__ == "__main__":

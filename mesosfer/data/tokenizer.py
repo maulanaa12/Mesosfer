@@ -22,7 +22,19 @@ SPECIAL_TOKENS = [
     "<|python_end|>",
     "<|output_start|>", # python REPL outputs back to assistant
     "<|output_end|>",
+    # structural tokens for code indentation (bypass BPE fragmentation)
+    "<|indent_2|>",  # 2-space indent
+    "<|indent_4|>",  # 4-space indent
+    "<|indent_8|>",  # 8-space indent
+    "<|tab|>",       # tab character
+    # structural tokens for JSON and code boundaries
+    "<|json_start|>",
+    "<|json_end|>",
+    "<|code_start|>",
+    "<|code_end|>",
+    "<|file_sep|>",  # file separator for multi-file code contexts
 ]
+
 
 # NOTE: this split pattern deviates from GPT-4 in that we use \p{N}{1,2} instead of \p{N}{1,3}
 # I did this because I didn't want to "waste" too many tokens on numbers for smaller vocab sizes.
