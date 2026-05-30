@@ -14,6 +14,8 @@ pip install huggingface_hub prompt_toolkit
 
 ### 2. Login to HuggingFace
 
+The script automatically reads the `HF_TOKEN` from the `.env` file in the root project directory. Alternatively, you can log in manually:
+
 ```bash
 hf auth login
 ```
@@ -50,7 +52,7 @@ python scripts/upload_checkpoint_to_hf.py
 =============================================
   Upload Checkpoint to HuggingFace Hub
 =============================================
-  Checkpoint dir: ~/.cache/mesosfer/base_checkpoints/d24
+  Checkpoint dir: ~/.cache/mesosfer/base_checkpoints/d32
 
   Checkpoints available: 5 (2,000 – 10,000)
 
@@ -66,15 +68,15 @@ python scripts/upload_checkpoint_to_hf.py
 
 ---
 
-### Menu Options
+## Menu Options
 
-#### [1] Save Latest
+### [1] Save Latest
 Uploads the checkpoint with the highest step number (most recent).
 
-#### [2] Best Checkpoint
+### [2] Best Checkpoint
 Uploads the checkpoint with the lowest `val_bpb` (best performance).
 
-#### [3] Choose Checkpoints — Multi-Select
+### [3] Choose Checkpoints — Multi-Select
 Displays all available checkpoints as an interactive checkbox list. Multiple checkpoints can be selected.
 
 ```
@@ -99,30 +101,30 @@ Displays all available checkpoints as an interactive checkbox list. Multiple che
 | `ENTER` | Confirm and start upload |
 | `q` / `ESC` | Cancel |
 
-After confirming, all selected checkpoints are uploaded sequentially:
+After confirming, all selected checkpoints are uploaded sequentially to your dedicated repository:
 
 ```
 ── [1/2] step 4,000 ──
-  Uploading model_004000.pt (312.4 MB)...
+  Uploading model_004000.pt (512.4 MB)...
   ✓ model_004000.pt uploaded
   Uploading meta_004000.json (0.0 MB)...
   ✓ meta_004000.json uploaded
-  Uploading optim_004000_rank0.pt (624.8 MB)...
+  Uploading optim_004000_rank0.pt (1.02 GB)...
   ✓ optim_004000_rank0.pt uploaded
 
 ── [2/2] step 6,000 ──
-  Uploading model_006000.pt (312.4 MB)...
+  Uploading model_006000.pt (512.4 MB)...
   ...
 
-Done! 6/6 files uploaded to Dummy9898/mesosfer-checkpoints/d24/
+Done! 6/6 files uploaded to <your-username>/model/d32/
 ```
 
-#### [4] List all checkpoints
+### [4] List all checkpoints
 Displays a table of all checkpoints with their `val_bpb` values — no upload performed.
 
 ---
 
-### CLI Mode (non-interactive)
+## CLI Mode (non-interactive)
 
 #### Upload the latest checkpoint (highest step)
 
@@ -148,35 +150,24 @@ python scripts/upload_checkpoint_to_hf.py --step 8000
 python scripts/upload_checkpoint_to_hf.py --list
 ```
 
-Example output:
-```
-Step       val_bpb      Status
------------------------------------
-2000       1.234567
-4000       1.198432
-6000       1.187654     ← BEST
-8000       1.201234
-10000      1.195678
-```
-
 ---
 
 ## Additional Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--depth` | `d24` | Model depth tag (subfolder inside the HF repo) |
-| `--repo` | `Dummy9898/mesosfer-checkpoints` | HuggingFace repo ID |
+| `--depth` | `d32` | Model depth tag (subfolder inside the HF repo) |
+| `--repo` | `None` (auto) | HuggingFace repo ID (defaults to dedicated `<your-username>/model`) |
 | `--model-only` | `false` | Skip optimizer state, upload model + meta only |
 | `--base-dir` | `~/.cache/mesosfer` | Override the checkpoint directory path |
 
 ### Examples with custom options
 
 ```bash
-# Upload best checkpoint to a different repo, skip optimizer
+# Upload best checkpoint to a different custom repo, skip optimizer
 python scripts/upload_checkpoint_to_hf.py --best \
-    --repo username/my-model \
-    --depth d12 \
+    --repo custom-org/cyber-model-draft \
+    --depth d32 \
     --model-only
 
 # Upload from a custom directory
@@ -188,11 +179,11 @@ python scripts/upload_checkpoint_to_hf.py --latest \
 
 ## HuggingFace Repo Structure
 
-Files are uploaded into a subfolder based on `--depth`:
+Files are uploaded into a subfolder inside your dedicated model repository based on `--depth`:
 
 ```
-Dummy9898/mesosfer-checkpoints/
-└── d24/
+<your-username>/model/
+└── d32/
     ├── model_004000.pt
     ├── meta_004000.json
     ├── optim_004000_rank0.pt
@@ -206,19 +197,18 @@ Dummy9898/mesosfer-checkpoints/
 ## Troubleshooting
 
 **`ERROR: Checkpoint directory not found`**
-- Make sure training has run and saved at least one checkpoint
-- Check the path: `~/.cache/mesosfer/base_checkpoints/d24/`
-- Use `--base-dir` if checkpoints are stored elsewhere
+* Make sure training has run and saved at least one checkpoint
+* Check the path: `~/.cache/mesosfer/base_checkpoints/d32/`
+* Use `--base-dir` if checkpoints are stored elsewhere
 
 **`ERROR: Cannot login to HuggingFace`**
-- Run `hf auth login` and enter a valid token
-- Make sure the token has `write` permission
+* Set `HF_TOKEN` in `.env` or run `hf auth login`
+* Make sure the token has `write` permission
 
 **`SKIP: optim_XXXXXX_rank0.pt not found`**
-- The optimizer file is missing from the checkpoint directory
-- Use `--model-only` to skip it
-- Check if the optimizer filename format differs (e.g., multi-rank training)
+* The optimizer file is missing from the checkpoint directory
+* Use `--model-only` to skip it
 
 **`ERROR: prompt_toolkit is not installed`**
-- Run `pip install prompt_toolkit`
-- Only required for the Choose Checkpoints mode (option [3])
+* Run `pip install prompt_toolkit` or `uv sync` to ensure it is resolved
+* Only required for the Choose Checkpoints manual selection mode (option [3])

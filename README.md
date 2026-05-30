@@ -74,31 +74,21 @@ uv sync --extra gpu
 
 Data preparation must be completed **before** training. Run these steps in order:
 
-#### Step 2a — Download ClimbMix general pretraining data (~17 GB)
+#### Step 2a — Download and Prepare Pretraining Datasets
+
+This single command automatically downloads the ClimbMix general pretraining shards (~17 GB) and prepares/interleaves the cybersecurity domain datasets (CVE feeds, HuggingFace cybersec datasets, and local files):
 
 ```bash
-# Download 170 shards of ClimbMix-400B (enough for depth 24 at ratio 10)
-python -m mesosfer.data.dataset -n 170
-```
-
-#### Step 2b — Prepare cybersecurity dataset
-
-Downloads and interleaves CVE feeds, HuggingFace cybersec datasets, and local files.
-Output: `~/.cache/mesosfer/base_data_cybersecurity/`
-
-```bash
-python -m scripts.data.prepare_data
+python scripts/data/prepare_data.py
 
 # Check progress
-python -m scripts.data.prepare_data --status
+python scripts/data/prepare_data.py --status
 
 # Dry-run to preview sources
-python -m scripts.data.prepare_data --dry-run
+python scripts/data/prepare_data.py --dry-run
 ```
 
-> Steps 2a and 2b can run **in parallel** in separate terminals.
-
-#### Step 2c — Convert raw security logs to natural language
+#### Step 2b — Convert raw security logs to natural language
 
 Converts `data/log/` and `data/cloud/` files to NL narratives (prevents loss spikes).
 Output: `data/log_nl/` and `data/cloud_nl/`
@@ -110,7 +100,7 @@ python -m scripts.data.convert_logs_to_nl
 python -m scripts.data.convert_logs_to_nl --dry-run
 ```
 
-> Step 2c can run in parallel with 2a and 2b. It only reads from `data/` in the repo.
+> Step 2b can run in parallel with 2a. It only reads from `data/` in the repo.
 
 ---
 
@@ -129,7 +119,7 @@ python -m scripts.eval.tok_eval
 
 ### 4. Pretrain Base Model
 
-Requires Steps 2a, 2b, 2c, and 3 to be complete.
+Requires Steps 2a, 2b, and 3 to be complete.
 
 ```bash
 # Depth 24 — recommended config for MI300X / single GPU

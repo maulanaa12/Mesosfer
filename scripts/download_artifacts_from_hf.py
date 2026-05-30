@@ -76,35 +76,55 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 
-def _resolve_repo(cli_value: str | None) -> str:
+def _resolve_username(cli_value: str | None) -> str:
     """
-    Resolve the HF repo ID with this priority:
-      1. --repo CLI flag (explicit)
-      2. HF_REPO env var / .env file
-      3. Prompt the user interactively
-    Never falls back to a hardcoded username.
+    Resolve the HF username with this priority:
+      1. Explicit username from CLI (if user passed full repo, extract username)
+      2. HF_USERNAME env var / .env file
+      3. Extract from HF_REPO in env (e.g. johndoe/mesosfer-checkpoints -> johndoe)
+      4. Auto-detect from active HF login whoami
+      5. Prompt the user interactively
     """
     if cli_value:
+        if "/" in cli_value:
+            return cli_value.split("/")[0]
         return cli_value
+
+    env_username = os.environ.get("HF_USERNAME", "").strip()
+    if env_username and "your_hf_username" not in env_username:
+        return env_username
+
     env_repo = os.environ.get("HF_REPO", "").strip()
-    if env_repo and "your_hf_username" not in env_repo:
-        return env_repo
-    # Interactive fallback
-    warn("HF_REPO is not set. Set it in .env or pass --repo.")
+    if env_repo and "your_hf_username" not in env_repo and "/" in env_repo:
+        return env_repo.split("/")[0]
+
+    # Auto-detect via HfApi
     try:
-        repo = input("  Enter HF repo (e.g. johndoe/mesosfer-checkpoints): ").strip()
+        from huggingface_hub import HfApi
+        token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        api = HfApi(token=token)
+        user = api.whoami()
+        if "name" in user:
+            return user["name"]
+    except Exception:
+        pass
+
+    # Interactive fallback
+    warn("HF_USERNAME is not set in .env and auto-detect failed.")
+    try:
+        username = input("  Enter your Hugging Face username (e.g. mesosfer): ").strip()
     except (KeyboardInterrupt, EOFError):
-        repo = ""
-    if not repo:
-        err("ERROR: No repo specified. Aborting.")
+        username = ""
+    if not username:
+        err("ERROR: No Hugging Face username specified. Aborting.")
         sys.exit(1)
-    return repo
+    return username
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-DEFAULT_REPO = os.environ.get("HF_REPO", "").strip() or None  # resolved at runtime via _resolve_repo()
-DEFAULT_DEPTH = "d24"
+DEFAULT_REPO = None  # resolved at runtime via _resolve_username()
+DEFAULT_DEPTH = "d32"
 
 SOURCE_DIR_MAP = {
     "base": "base_checkpoints",
@@ -166,7 +186,8 @@ def list_remote_checkpoints(api, repo: str, source: str, depth: str) -> tuple[li
     discovered under <source>/<depth>/ or <depth>/ in the HF repo, sorted by step.
     """
     try:
-        files = api.list_repo_files(repo_id=repo, repo_type="model")
+        token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        files = api.list_repo_files(repo_id=repo, repo_type="model", token=token)
     except Exception as e:
         err(f"ERROR: cannot list files in {repo}: {e}")
         return [], ""
@@ -197,6 +218,7 @@ def list_remote_checkpoints(api, repo: str, source: str, depth: str) -> tuple[li
         return rows, prefix
 
     # Fetch val_bpb for each meta file (cheap: small JSON) — best effort
+    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
     from huggingface_hub import hf_hub_download
     for row in rows:
         meta_name = f"meta_{row['step']:06d}.json"
@@ -206,6 +228,7 @@ def list_remote_checkpoints(api, repo: str, source: str, depth: str) -> tuple[li
             local = hf_hub_download(
                 repo_id=repo, repo_type="model",
                 filename=f"{prefix}{meta_name}",
+                token=token,
             )
             with open(local, encoding="utf-8") as f:
                 row["val_bpb"] = json.load(f).get("val_bpb")
@@ -244,10 +267,11 @@ def _download_one_step(api, hf_hub_download, repo: str, prefix: str,
             info(f"  ✓ {name} already present (skipping)")
             downloaded += 1
             continue
-        info(f"  Downloading {name} …")
+        token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
         cached = hf_hub_download(
             repo_id=repo, repo_type="model",
             filename=f"{prefix}{name}",
+            token=token,
         )
         # Move/symlink cached file into mesosfer cache layout
         try:
@@ -263,7 +287,8 @@ def _download_one_step(api, hf_hub_download, repo: str, prefix: str,
 
 def download_model(args, base_dir: Path) -> None:
     HfApi, hf_hub_download = _require_hf_hub()
-    api = HfApi()
+    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    api = HfApi(token=token)
 
     user = _whoami(api)
     if user:
@@ -479,8 +504,16 @@ def download_tokenizer(args, base_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     repo = args.repo
-    info(f"\nRepo:      {repo}/tokenizer/")
+    info(f"\nRepo:      {repo}/")
     info(f"Local dir: {out_dir}\n")
+
+    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+
+    try:
+        api = HfApi(token=token)
+        files = set(api.list_repo_files(repo, repo_type="model", token=token))
+    except Exception:
+        files = set()
 
     downloaded = 0
     for name in TOKENIZER_FILES:
@@ -490,11 +523,20 @@ def download_tokenizer(args, base_dir: Path) -> None:
             downloaded += 1
             continue
         info(f"  Downloading {name} …")
+        
+        if name in files:
+            repo_path = name
+        elif f"tokenizer/{name}" in files:
+            repo_path = f"tokenizer/{name}"
+        else:
+            repo_path = name
+
         try:
             cached = hf_hub_download(
                 repo_id=repo,
                 repo_type="model",
-                filename=f"tokenizer/{name}",
+                filename=repo_path,
+                token=token,
             )
         except Exception as e:
             err(f"  ✗ {name}: {e}")
@@ -530,7 +572,8 @@ def download_dataset(args, base_dir: Path) -> None:
     Files already present locally are skipped (idempotent).
     """
     HfApi, hf_hub_download = _require_hf_hub()
-    api = HfApi()
+    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    api = HfApi(token=token)
 
     repo = getattr(args, "repo", DEFAULT_REPO)
     dirs_to_download = getattr(args, "dataset_dirs", None) or DATASET_DIRS
@@ -539,20 +582,20 @@ def download_dataset(args, base_dir: Path) -> None:
     info(f"\nRepo: {repo}")
     with spinner("Fetching file list from repo…"):
         try:
-            all_repo_files: list[str] = list(api.list_repo_files(repo_id=repo, repo_type="model"))
+            all_repo_files: list[str] = list(api.list_repo_files(repo_id=repo, repo_type="model", token=token))
         except Exception as e:
             err(f"ERROR: cannot list files in {repo}: {e}")
-            err("  Make sure you are logged in: hf auth login")
+            err("  Make sure you are logged in or HF_TOKEN is correct in .env")
             return
 
     grand_dl = grand_skip = grand_missing = 0
 
     for dir_name in dirs_to_download:
-        repo_prefix = f"dataset/{dir_name}/"
-        # Filter to shards belonging to this dir
+        repo_prefix = f"{dir_name}/"
+        # Filter remote shards (handle both <dir_name>/ and dataset/<dir_name>/)
         remote_shards = sorted(
             f for f in all_repo_files
-            if f.startswith(repo_prefix) and f.endswith(".parquet")
+            if (f.startswith(repo_prefix) or f.startswith(f"dataset/{repo_prefix}")) and f.endswith(".parquet")
         )
 
         if not remote_shards:
@@ -568,7 +611,10 @@ def download_dataset(args, base_dir: Path) -> None:
 
         downloaded = skipped = 0
         for i, repo_path in enumerate(remote_shards, 1):
-            filename = repo_path[len(repo_prefix):]   # e.g. shard_00000.parquet
+            if repo_path.startswith("dataset/"):
+                filename = repo_path[len(f"dataset/{repo_prefix}"):]
+            else:
+                filename = repo_path[len(repo_prefix):]
             local_path = out_dir / filename
 
             if local_path.exists() and not getattr(args, "force", False):
@@ -582,6 +628,7 @@ def download_dataset(args, base_dir: Path) -> None:
                     repo_id=repo,
                     repo_type="model",
                     filename=repo_path,
+                    token=token,
                 )
             except Exception as e:
                 err(f"    ✗ {filename}: {e}")
@@ -725,8 +772,8 @@ def main(argv: Iterable[str] | None = None) -> int:
     args = parser.parse_args(argv)
     base_dir = get_base_dir(args.base_dir)
 
-    # Resolve repo — env var / .env / interactive prompt
-    args.repo = _resolve_repo(args.repo)
+    # Resolve HF username
+    username = _resolve_username(args.repo)
 
     # Pre-execution validation (RULES §5)
     if not os.access(base_dir, os.W_OK):
@@ -742,6 +789,14 @@ def main(argv: Iterable[str] | None = None) -> int:
         args.artifact = choice
         if choice == "model":
             prompt_model_options(args)
+
+    # Hardcode repo path depending on artifact type
+    if args.artifact == "model":
+        args.repo = f"{username}/model"
+    elif args.artifact == "tokenizer":
+        args.repo = f"{username}/tokenizer"
+    elif args.artifact == "dataset":
+        args.repo = f"{username}/dataset"
 
     try:
         if args.artifact == "model":
