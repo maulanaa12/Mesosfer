@@ -124,13 +124,13 @@ Requires Steps 2a, 2b, and 3 to be complete.
 ```bash
 # Depth 24 — recommended config for MI300X / single GPU
 python -m scripts.train.base_train \
-    --depth=24 \
-    --target-param-data-ratio=10 \
+    --depth=32 \
+    --target-param-data-ratio=15 \
     --device-batch-size=32 \
-    --warmup-steps=200 \
+    --warmup-steps=500 \
     --window-pattern=L \
     --save-every=1000 \
-    --core-metric-every=5000 \
+    --core-metric-every=1000 \
     --run=d24_run
 
 # Or use the full pipeline script (handles setup + tokenizer + pretrain + SFT)
@@ -146,7 +146,7 @@ WANDB_RUN=my_run bash runs/speedrun.sh
 
 ```bash
 python -m scripts.eval.base_eval \
-    --model-tag d24 \
+    --model-tag d32 \
     --device-batch-size 32
 ```
 
@@ -360,7 +360,6 @@ export WANDB_RUN=my_training_run
 ### Dataset Configuration
 
 See [DATASET.md](DATASET.md) for dataset sources, sampling weights, and token budgets.
-See [DATASET2.md](DATASET2.md) for advanced configuration and dynamic source definitions.
 
 ---
 
@@ -395,8 +394,10 @@ ruff check .
 
 | Model | Parameters | Tokens | Validation BPB | CORE Score |
 |-------|-----------|--------|----------------|------------|
-| GPT-2 (reference) | ~124M | ~5B | ~0.97 | ~25 |
-| mesosfer d24 (ratio=10) | ~1.38B | ~7.3B | 0.7337 | 0.2541 |
+| GPT-2 (reference) | ~124M | ~5B | ~0.9700 | ~0.2500 |
+| mesosfer d24 (Base, ratio=10) | ~1.38B | ~7.3B | 0.7337 | 0.2541 |
+| mesosfer d24 (SFT, step 1250) | ~1.38B | ~7.3B + ~1.2B | 0.7312 | **0.3486 (ChatCORE)** |
+| mesosfer d32 | ~11.5B | ~100B target (ratio=15) | TBA | TBA |
 
 > CORE score: average of MMLU (5-shot), GSM8K (COT), ARC-C, HumanEval (pass@1), Only base model
 
@@ -420,8 +421,8 @@ num_heads = model_dim / head_dim
 | 20 | 64 | 1280 | ~1.5B | ~4.8B | ✅ |
 | 22 | 64 | 1408 | ~1.8B | ~6.2B | ✅ |
 | 24 | 64 | 1536 | ~2.2B | ~7.8B | ✅ |
-| 28 | 64 | 1792 | ~3.1B | ~12.0B | ❌ need more data |
-| 32 | 128 | 4096 | ~11.5B | ~67B | ❌ need more data |
+| 28 | 64 | 1792 | ~3.1B | ~12.0B | ✅ |
+| 32 | 128 | 4096 | ~11.5B | ~67B | ✅ |
 | 36 | 128 | 4608 | ~15.5B | ~95B | ❌ need more data |
 | 40 | 128 | 5120 | ~20.3B | ~129B | ❌ need more data |
 | 44 | 128 | 5632 | ~26.0B | ~171B | ❌ need more data |
@@ -464,4 +465,4 @@ Features like GQA, Flash Attention 2/3, RoPE, RMSNorm, and BF16/FP8 are already 
 
 ## License
 
-MIT License
+[MIT License](LICENSE)
