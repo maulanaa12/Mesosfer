@@ -2,21 +2,25 @@
 """
 Convert mythos_combined_sft conversations from the external tool_call/tool
 format into mesosfer's native multi-part assistant format that uses the
-<|python_start|> / <|python_end|> / <|output_start|> / <|output_end|>
-special tokens.
+generic tool-calling tokens <|tool_start|> / <|tool_end|> for the call and
+<|output_start|> / <|output_end|> for the result.
+
+CLI tools (bash, grep, nmap, tshark, ...) are shell commands, not Python, so
+they are represented as generic named tool calls rather than being wrapped in
+a Python subprocess block.
 
 Input format (mythos):
     user → assistant (with <tool_call>) → tool → assistant (with <tool_call>) → tool → assistant
 
 Output format (mesosfer native):
     user → assistant [
-        {type: "text",          text: "<thinking>...</thinking>\n"},
-        {type: "python",        text: "import subprocess\n..."},
-        {type: "python_output", text: "command output"},
-        {type: "text",          text: "<thinking>...</thinking>\n"},
-        {type: "python",        text: "..."},
-        {type: "python_output", text: "output"},
-        {type: "text",          text: "final answer"}
+        {type: "text",        text: "<thinking>...</thinking>\n"},
+        {type: "tool",        text: '{"name": "shell", "arguments": {"command": "nmap -sV ..."}}'},
+        {type: "tool_output", text: "command output"},
+        {type: "text",        text: "<thinking>...</thinking>\n"},
+        {type: "tool",        text: '{"name": "shell", "arguments": {"command": "..."}}'},
+        {type: "tool_output", text: "output"},
+        {type: "text",        text: "final answer"}
     ]
 
 This collapses the multi-role chain into proper user/assistant alternation
@@ -35,12 +39,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SFT_DIR = REPO_ROOT / "data" / "sft"
 
 
-def _extract_tool_call_code(text: str) -> tuple[str, str]:
-    """Extract the thinking text and a Python subprocess command from a
-    <tool_call> block.
+def _extract_tool_command(text: str) -> tuple[str, str]:
+    """Extract the thinking text and a shell command from a <tool_call> block.
 
-    Returns (pre_text, python_code) where python_code wraps the original
-    command in subprocess.run() for training the model to use real CLI tools.
+    Returns (pre_text, command) where command is the reconstructed CLI command
+    line. The caller wraps it in a generic tool call
+    ``{"name": "shell", "arguments": {"command": command}}``.
     """
     # Split on the <tool_call> block
     parts = re.split(r"<tool_call>\s*", text, maxsplit=1)
@@ -56,44 +60,29 @@ def _extract_tool_call_code(text: str) -> tuple[str, str]:
     try:
         tool_call = json.loads(call_block)
     except json.JSONDecodeError:
-        # If we can't parse, wrap the raw block
-        return pre_text, f"# Raw tool call\n{call_block}"
+        return pre_text, ""
 
     name = tool_call.get("name", "bash")
     args = tool_call.get("arguments", "")
 
-    # Convert tool_call to a subprocess.run command
+    # Reconstruct a single shell command line from the tool call.
     if name == "bash" and isinstance(args, str):
-        # Direct bash command
-        escaped = args.replace("\\", "\\\\").replace("'", "\\'")
-        code = (
-            f"import subprocess\n"
-            f"result = subprocess.run(['bash', '-c', '{escaped}'], "
-            f"capture_output=True, text=True, timeout=30)\n"
-            f"print(result.stdout.strip())"
-        )
+        command = args.strip()
     elif isinstance(args, list):
-        # Command with argument list (e.g. ["grep", "-i", "pattern", "file"])
-        cmd_parts = [name] + [str(a) for a in args]
-        code = (
-            f"import subprocess\n"
-            f"result = subprocess.run({cmd_parts!r}, "
-            f"capture_output=True, text=True, timeout=30)\n"
-            f"print(result.stdout.strip())"
-        )
+        # Command name + argument list (e.g. ["grep", "-i", "pattern", "file"])
+        command = " ".join([name] + [str(a) for a in args]).strip()
     elif isinstance(args, str):
-        # Command name + string arguments
-        escaped = args.replace("\\", "\\\\").replace("'", "\\'")
-        code = (
-            f"import subprocess\n"
-            f"result = subprocess.run(['bash', '-c', '{name} {escaped}'], "
-            f"capture_output=True, text=True, timeout=30)\n"
-            f"print(result.stdout.strip())"
-        )
+        command = f"{name} {args}".strip()
     else:
-        code = f"# {name}({args})"
+        command = str(name).strip()
 
-    return pre_text, code
+    return pre_text, command
+
+
+def _tool_part(command: str) -> dict:
+    """Wrap a shell command in the generic tool-call part format."""
+    call = {"name": "shell", "arguments": {"command": command}}
+    return {"type": "tool", "text": json.dumps(call, ensure_ascii=False)}
 
 
 def convert_conversation(messages: list[dict]) -> list[dict] | None:
@@ -127,11 +116,11 @@ def convert_conversation(messages: list[dict]) -> list[dict] | None:
                     content = current["content"]
                     if "<tool_call>" in content:
                         # This assistant message contains a tool call
-                        pre_text, code = _extract_tool_call_code(content)
+                        pre_text, command = _extract_tool_command(content)
                         if pre_text:
                             parts.append({"type": "text", "text": pre_text + "\n"})
-                        if code:
-                            parts.append({"type": "python", "text": code})
+                        if command:
+                            parts.append(_tool_part(command))
                     else:
                         # Final assistant text (no tool call)
                         if content.strip():
@@ -140,7 +129,7 @@ def convert_conversation(messages: list[dict]) -> list[dict] | None:
 
                 elif current["role"] == "tool":
                     # Tool output
-                    parts.append({"type": "python_output", "text": current["content"]})
+                    parts.append({"type": "tool_output", "text": current["content"]})
                     i += 1
             
             if parts:
@@ -195,7 +184,7 @@ def process_file(input_path: Path, output_path: Path) -> tuple[int, int, int]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert mythos tool_call/tool format to mesosfer native <|python_start|> format"
+        description="Convert mythos tool_call/tool format to mesosfer native <|tool_start|> format"
     )
     parser.add_argument("--sft-dir", type=Path, default=SFT_DIR)
     args = parser.parse_args()
@@ -212,7 +201,7 @@ def main():
             print(f"SKIP: {src} not found")
             continue
         total, converted, kept = process_file(src, dst)
-        print(f"{src_name}: {total} total -> {converted} converted to native tool format, {kept} kept as-is -> {dst}")
+        print(f"{src_name}: {total} total -> {converted} converted to native tool format (<|tool_start|>), {kept} kept as-is -> {dst}")
 
 
 if __name__ == "__main__":

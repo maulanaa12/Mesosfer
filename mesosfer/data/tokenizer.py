@@ -20,20 +20,19 @@ SPECIAL_TOKENS = [
     "<|assistant_end|>",
     "<|python_start|>", # assistant invokes python REPL tool
     "<|python_end|>",
-    "<|output_start|>", # python REPL outputs back to assistant
+    "<|output_start|>", # python REPL / tool outputs back to assistant
     "<|output_end|>",
-    # structural tokens for code indentation (bypass BPE fragmentation)
-    "<|indent_2|>",  # 2-space indent
-    "<|indent_4|>",  # 4-space indent
-    "<|indent_8|>",  # 8-space indent
-    "<|tab|>",       # tab character
-    # structural tokens for JSON and code boundaries
-    "<|json_start|>",
-    "<|json_end|>",
-    "<|code_start|>",
-    "<|code_end|>",
-    "<|file_sep|>",  # file separator for multi-file code contexts
+    "<|tool_start|>", # assistant invokes a named tool (shell, nmap, sql, http, ...)
+    "<|tool_end|>",   # tool call payload is JSON: {"name": ..., "arguments": {...}}
 ]
+# NOTE: Every special token above is part of the actual train/inference protocol:
+# <|bos|> delimits pretraining documents (prepended per-doc by the dataloader); the
+# conversation/tool tokens are emitted by RustBPETokenizer.render_conversation during
+# SFT/RL. <|python_*|> wraps the built-in Python REPL (executed by the engine), while
+# <|tool_start|>/<|tool_end|> wraps a generic named tool call (JSON name+arguments) so
+# any tool family (shell, network scanners, SQL, HTTP, ...) shares one token pair.
+# Do not declare special tokens that are never emitted into the data — they would waste
+# vocab slots and leave untrained embedding / lm_head rows.
 
 
 # NOTE: this split pattern deviates from GPT-4 in that we use \p{N}{1,2} instead of \p{N}{1,3}
@@ -309,6 +308,7 @@ class RustBPETokenizer:
         assistant_start, assistant_end = self.encode_special("<|assistant_start|>"), self.encode_special("<|assistant_end|>")
         python_start, python_end = self.encode_special("<|python_start|>"), self.encode_special("<|python_end|>")
         output_start, output_end = self.encode_special("<|output_start|>"), self.encode_special("<|output_end|>")
+        tool_start, tool_end = self.encode_special("<|tool_start|>"), self.encode_special("<|tool_end|>")
 
         # now we can tokenize the conversation
         add_tokens(bos, 0)
@@ -347,6 +347,18 @@ class RustBPETokenizer:
                         elif part["type"] == "python_output":
                             # python output => add the tokens inside <|output_start|> and <|output_end|>
                             # none of these tokens are supervised because the tokens come from Python at test time
+                            add_tokens(output_start, 0)
+                            add_tokens(value_ids, 0)
+                            add_tokens(output_end, 0)
+                        elif part["type"] == "tool":
+                            # generic named tool call => tokens inside <|tool_start|> and <|tool_end|>
+                            # supervised: the assistant must learn to emit the tool call
+                            add_tokens(tool_start, 1)
+                            add_tokens(value_ids, 1)
+                            add_tokens(tool_end, 1)
+                        elif part["type"] == "tool_output":
+                            # tool result => tokens inside <|output_start|> and <|output_end|>
+                            # not supervised: the result comes from the environment at test time
                             add_tokens(output_start, 0)
                             add_tokens(value_ids, 0)
                             add_tokens(output_end, 0)
