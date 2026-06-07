@@ -1,4 +1,11 @@
-# Mesosfer
+# Mesosfer - Cybersecurity LLM Framework
+
+[![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](pyproject.toml)
+[![PyTorch 2.6+](https://img.shields.io/badge/pytorch-2.6+-red.svg)](https://pytorch.org/)
+[![CUDA 12.8](https://img.shields.io/badge/CUDA-12.8-green.svg)](RUN_NVIDIA.md)
+[![ROCm 7.0](https://img.shields.io/badge/ROCm-7.0-orange.svg)](RUN_AMD.md)
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Models-yellow.svg)](https://huggingface.co/Pabloraka)
 
 A minimal full-stack cybersecurity-focused language model — from pretraining to chat.
 
