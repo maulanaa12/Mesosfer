@@ -188,3 +188,67 @@ def test_dataset2_marketing_filter_only_applies_to_dataset2_sources():
 
     assert prepare_data.is_high_quality_security_text(dataset2_marketing, "project_zero") is False
     assert prepare_data.is_high_quality_security_text(old_source_marketing, "secure_code_python") is True
+
+
+def test_competition_math_moved_to_sft():
+    # competition_math is instruction-tuning data, so it must NOT be in the
+    # pretraining sources/weights — it now lives in download_sft_data.py.
+    assert "competition_math" not in prepare_data.DATASET_SOURCES
+    assert "competition_math" not in prepare_data.DOMAIN_SAMPLING_WEIGHTS
+
+    from scripts.data import download_sft_data
+
+    assert "competition_math_sft" in download_sft_data.SOURCES
+    cfg = download_sft_data.SOURCES["competition_math_sft"]
+    assert cfg["hf_name"] == "hendrycks/competition_math"
+
+
+def test_sft_only_sources_excluded_from_pretraining():
+    # The instruction/chat/DPO datasets that were moved to SFT must not leak
+    # back into the pretraining mixture.
+    moved = (
+        "trendyol_cyber",
+        "nist_cybersec",
+        "fenrir_v2",
+        "cybernative_vuln_dpo",
+        "openhermes",
+        "code_feedback",
+        "numinamath_cot",
+        "competition_math",
+    )
+    for name in moved:
+        assert name not in prepare_data.DATASET_SOURCES
+        assert name not in prepare_data.DOMAIN_SAMPLING_WEIGHTS
+
+
+
+def test_writer_reader_column_contract(tmp_path):
+    """prepare_data.write_shard must produce a 'text' column read the exact same
+    way the pretraining reader (dataset.parquets_iter_batched) and tokenizer
+    training (tok_train) consume it. This locks the writer<->reader contract."""
+    import pyarrow.parquet as pq
+
+    shard = tmp_path / "shard_00000.parquet"
+    docs = ["first doc about CVE-2021-44228", "second doc about SOC triage"]
+    prepare_data.write_shard(docs, str(shard))
+
+    # Mimic dataset.parquets_iter_batched's exact access pattern
+    pf = pq.ParquetFile(str(shard))
+    read_back = []
+    for rg_idx in range(pf.num_row_groups):
+        rg = pf.read_row_group(rg_idx)
+        read_back.extend(rg.column("text").to_pylist())
+
+    assert read_back == docs
+
+
+def test_writer_output_dir_matches_reader_auxiliary_dir():
+    """The directory prepare_data writes cybersecurity shards into must be one of
+    the auxiliary directories the pretraining reader auto-merges, otherwise the
+    prepared data would silently never be trained on."""
+    import os
+    from mesosfer.data import dataset
+
+    aux_basenames = {os.path.basename(p) for p in dataset.AUXILIARY_DATA_DIRS}
+    # default --output-dir in prepare_data is "base_data_cybersecurity"
+    assert "base_data_cybersecurity" in aux_basenames

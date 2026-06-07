@@ -1,196 +1,270 @@
-# Dataset & Pretraining Data Architecture (mesosfer)
+# Dataset Architecture (mesosfer)
 
-This document provides a comprehensive guide to the datasets, vocabulary markers, sampling weights, and natural language log narrative pipelines that power the pretraining phase of **mesosfer**.
+This document describes the datasets that power the three training/evaluation
+stages of **mesosfer**, kept in sync with the source of truth in code:
+
+- **Pretraining** → `scripts/data/prepare_data.py` (`DATASET_SOURCES`, `DOMAIN_SAMPLING_WEIGHTS`)
+- **SFT** → `scripts/data/download_sft_data.py` (`SOURCES`) + local `data/sft/*.jsonl` wired in `tasks/cybersec_sft.py`
+- **Eval** → `scripts/eval/base_eval.py` + `scripts/chat/chat_eval.py`
 
 ---
 
 ## 1. Token Budget Summary (Depth 32)
 
-| Mode | Scaling Params | Ratio | Tokens Needed | Tokens Available | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| Speedrun (`--target-param-data-ratio=10`) | ~6.5B | 10× | ~65B | ~100B+ | ✅ 1.5× surplus |
-| Recommended (`--target-param-data-ratio=15`) | ~6.5B | 15× | ~98B (~100B) | ~100B+ | ✅ Fully Covered |
-| Compute-optimal (`--target-param-data-ratio=18`) | ~6.5B | 18× | ~117B | ~100B+ | ⚠️ Scaled limits |
 
-> **Depth 32 Config:** `n_embd = 32 × 128 = 4096`, ~9.8B total params, ~6.5B scaling params (excl. embeddings).
-> Recommended training command: `--depth=32 --target-param-data-ratio=15` (~100B tokens)
+| Mode                                             | Scaling Params | Ratio | Tokens Needed | Tokens Available | Status              |
+| :------------------------------------------------- | :--------------- | :------ | :-------------- | :----------------- | :-------------------- |
+| Speedrun (`--target-param-data-ratio=10`)        | ~6.5B          | 10×  | ~65B          | ~100B            | ✅ surplus          |
+| Recommended (`--target-param-data-ratio=15`)     | ~6.5B          | 15×  | ~98B          | ~100B            | ✅ fully covered    |
+| Compute-optimal (`--target-param-data-ratio=18`) | ~6.5B          | 18×  | ~117B         | ~100B            | ⚠️ slightly under |
 
----
+> **Depth 32 config:** `n_embd = 32 × 128 = 4096`, ~9.8B total params, ~6.5B scaling params (excl. embeddings).
+> Recommended: `--depth=32 --target-param-data-ratio=15` (~100B tokens).
 
-## 2. Domain Sampling Weights
+### Pretraining mix by category (sum of `max_tokens`)
 
-Sampling weights control temperature-based interleaved shuffling, where higher weights make a domain appear more frequently in mixed shards. These weights determine the relative probability of document selection during data shuffling, not the total volume.
 
-### A. Weight Guidelines:
-- **2.0+ (Critical Priority):** Exploit/vuln patches, SOC-critical intel, curated seeds, local security data.
-- **1.5–1.9 (High Priority):** Structured cybersecurity knowledge, CVE feeds, threat intel, coding feedback.
-- **1.2–1.4 (Elevated):** Secure code, detection rules, exploit frameworks.
-- **0.9–1.1 (Normal):** Competition math reasoning, general instruction.
-- **0.5–0.7 (Reduced):** General web reference content to prevent domain domination.
-
-> **Shuffle config (updated):** `cluster_size=32`, `sampling_temperature=1.2`
-> Higher cluster_size (32 vs old 8) and temperature >1.0 reduce domain-burst loss spikes.
-
-### B. Domain Weight Table:
-
-| Domain | Category | Weight | Max Tokens | Specific Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| `circl_vuln_patch` | Cybersecurity | 2.3 | 2.4B | Highest priority. Real vuln+patch pairs. |
-| `local_incident_response` | Cybersecurity | 2.2 | 1.44B | Synthetic IR reports. |
-| `primus_seed` | Cybersecurity | 2.2 | 2.0B | Curated cybersecurity seed corpus (Trend Micro). |
-| `local_soc_synthetic` | Cybersecurity | 2.1 | 1.44B | Synthetic SOC dialogues. |
-| `primus_nemotron_cc` | Cybersecurity | 2.1 | 7.6B | Cybersecurity text filtered from Nemotron-CC. |
-| `local_reverse_engineering` | Cybersecurity | 2.0 | 1.2B | RE/exploitation analysis. |
-| `cybernative_vuln_dpo` | Cybersecurity | 2.0 | 360M | Synthetic vulnerable vs fixed code pairs. |
-| `brightdata_cybersec` | Cybersecurity | 2.0 | 500M | Real-time threat intel scraped via BrightData proxy. |
-| `primus_reasoning` | Cybersecurity | 2.0 | 1.5B | Distilled cybersecurity chain-of-thought. |
-| `project_zero` | Cybersecurity | 2.0 | 40M | Google Project Zero RSS. |
-| `mandiant` | Cybersecurity | 2.0 | 40M | Mandiant threat intel RSS. |
-| `dfir_report` | Cybersecurity | 2.0 | 35M | DFIR Report intrusion analysis RSS. |
-| `cisa_kev` | Cybersecurity | 2.0 | 10M | CISA Known Exploited Vulnerabilities. |
-| `trendyol_cyber` | Cybersecurity | 1.9 | 2.4B | Cybersecurity instruction tuning. |
-| `fenrir_v2` | Cybersecurity | 1.9 | 2.4B | 99K cybersec Q&A (OWASP/MITRE/NIST). |
-| `primus_fineweb` | Cybersecurity | 1.9 | 5.0B | Cybersecurity-filtered FineWeb corpus. |
-| `unit42` | Cybersecurity | 1.9 | 40M | Palo Alto Unit42 threat research RSS. |
-| `talos` | Cybersecurity | 1.9 | 40M | Cisco Talos threat intel RSS. |
-| `local_cloud_security` | Cybersecurity | 1.9 | 1.2B | Cloud audit logs (NL narratives). |
-| `local_security_logs` | Cybersecurity | 1.9 | 1.2B | Auth/web/Sysmon logs (NL narratives). |
-| `github_advisory` | Cybersecurity | 1.9 | 100M | GitHub Security Advisory database. |
-| `all_cve_records` | Cybersecurity | 1.8 | 6.0B | NVD CVE JSON feeds 2002–present. |
-| `nist_cybersec` | Cybersecurity | 1.8 | 4.8B | NIST cybersecurity training docs. |
-| `nvd_cve` | Cybersecurity | 1.8 | 4.8B | CIRCL CVE List v5 ndjson dump. |
-| `academic_security_papers` | Cybersecurity | 1.8 | 120M | Top-tier security conference papers. |
-| `mitre_attack_stix` | Cybersecurity | 1.8 | 70M | MITRE ATT&CK STIX knowledge base. |
-| `exploitdb` | Code | 1.8 | 140M | Exploit Database PoC corpus. |
-| `metasploit` | Code | 1.7 | 180M | Metasploit Framework modules. |
-| `cloudflare_security` | Cybersecurity | 1.6 | 30M | Cloudflare security research RSS. |
-| `sigmahq_rules` | Cybersecurity | 1.6 | 70M | SigmaHQ detection rules. |
-| `elastic_rules` | Cybersecurity | 1.6 | 70M | Elastic detection rules. |
-| `code_feedback` | Code | 1.5 | 3.0B | Multi-language coding feedback instruction. |
-| `threat_report_pdfs` | Cybersecurity | 1.5 | 90M | Vendor threat report PDFs. |
-| `splunk_rules` | Cybersecurity | 1.5 | 60M | Splunk security detections. |
-| `zeek_scripts` | Cybersecurity | 1.5 | 40M | Zeek scripts and packages. |
-| `secure_code_python` | Code | 1.4 | 6.0B | Python from The Stack (dedup). |
-| `secure_code_c` | Code | 1.4 | 4.2B | C from The Stack (dedup). |
-| `secure_code_shell` | Code | 1.4 | 3.0B | Shell from The Stack (dedup). |
-| `swallow_code_v2` | Code | 1.3 | 8.0B | Refined Python code via 4-stage LLM pipeline (TokyoTech). |
-| `secure_code_cpp` | Code | 1.2 | 4.8B | C++ from The Stack (dedup). |
-| `secure_code_rust` | Code | 1.2 | 3.6B | Rust from The Stack (dedup). |
-| `secure_code_go` | Code | 1.2 | 3.6B | Go from The Stack (dedup). |
-| `numinamath_cot` | Instruction | 1.1 | 3.0B | Competition math with chain-of-thought reasoning. |
-| `openhermes` | Instruction | 0.9 | 4.2B | OpenHermes-2.5 conversations. |
-| `finemath` | Instruction | 0.9 | 3.0B | finemath-4plus mathematical reasoning. |
-| `fineweb_edu` | General | 0.7 | 4.0B | Educational web content. |
-| `climbmix` | General | 0.6 | 5.0B | General pretraining, suppressed. |
-| `wikipedia` | General | 0.5 | 3.0B | English Wikipedia, suppressed. |
+| Category         | Tokens      | Share |
+| :----------------- | :------------ | :------ |
+| Cybersecurity    | ~37.1B      | ~37%  |
+| Code             | ~30.1B      | ~30%  |
+| Reasoning / Math | ~21.0B      | ~21%  |
+| General          | ~12.0B      | ~12%  |
+| **Total**        | **~100.2B** | 100%  |
 
 ---
 
-## 3. Security Vocabulary Markers (Lexical Markers)
+## 2. Pretraining Data
 
-This section defines keyword tuples used for text filtering, quality scoring, and data routing in `prepare_data.py`:
+Sampling weights drive temperature-based interleaved shuffling: higher weight = a
+domain appears more frequently in mixed shards. `max_tokens` is the hard upper
+bound on volume per source.
 
-* **`CAUSAL_MARKERS`**: Keywords indicating cause-effect or vulnerability impact (e.g., *"exploits"*, *"bypasses"*, *"allows attacker to"*).
-* **`MECHANISM_TERMS`**: Specific memory corruption and reverse engineering concepts (e.g., *"buffer overflow"*, *"rop chain"*, *"use-after-free"*).
-* **`MARKETING_TERMS`**: Promotional and sales phrases (e.g., *"book a demo"*, *"free trial"*). Used as a **negative filter** to eliminate non-technical vendor spam.
-* **`SECURITY_STACK_TERMS`**: Infrastructure and defensive tooling (e.g., *"firewall"*, *"siem"*, *"yara"*).
-* **`SECURITY_CODE_TERMS`**: Low-level technical vocabulary and exploitation frameworks (e.g., *"shellcode"*, *"ghidra"*, *"vtable"*, *"syscall"*).
+> **Shuffle config:** `cluster_size=32`, `sampling_temperature=1.2` (reduce domain-burst loss spikes).
+
+### Weight guidelines
+
+- **2.0+ (critical):** Exploit/vuln patches, SOC-critical intel, curated seeds, local security data.
+- **1.5–1.9 (high):** Structured cybersecurity knowledge, CVE feeds, threat intel, advisories, detection rules.
+- **1.2–1.4 (elevated):** Secure code, refined code.
+- **0.9–1.1 (normal):** Mathematical / reasoning corpora.
+- **0.5–0.7 (reduced):** General web reference content (prevent domination).
+
+### Pretraining domain table
+
+****
+
+
+| Domain                      | Category      | Weight | Max Tokens | Source / Type                               | Notes                                    |
+| :---------------------------- | :-------------- | :------- | :----------- | :-------------------------------------------- | :----------------------------------------- |
+| `circl_vuln_patch`          | Cybersecurity | 2.3    | 2.4B       | `CIRCL/vulnerability-cwe-patch`             | Real vuln+patch pairs.                   |
+| `local_incident_response`   | Cybersecurity | 2.2    | 1.44B      | `data/synthetic-ir/`                        | Synthetic IR reports.                    |
+| `primus_seed`               | Cybersecurity | 2.2    | 2.0B<br /> | `trendmicro-ailab/Primus-Seed`              | Curated cybersec seed corpus.            |
+| `primus_nemotron_cc`        | Cybersecurity | 2.1    | 7.6B       | `trend-cybertron/Primus-Nemotron-CC`        | Cybersec text filtered from Nemotron-CC. |
+| `local_soc_synthetic`       | Cybersecurity | 2.1    | 1.44B      | `data/synthetic-soc/`                       | Synthetic SOC dialogues.                 |
+| `local_reverse_engineering` | Cybersecurity | 2.0    | 1.2B       | `data/reverse-engineering/`                 | RE/exploitation analysis.                |
+| `primus_reasoning`          | Cybersecurity | 2.0    | 1.5B       | `trendmicro-ailab/Primus-Reasoning`         | Distilled cybersec chain-of-thought.     |
+| `brightdata_cybersec`       | Cybersecurity | 2.0    | 500M       | brightdata_scraper                          | Real-time threat intel via proxy.        |
+| `project_zero`              | Cybersecurity | 2.0    | 40M        | rss                                         | Google Project Zero.                     |
+| `mandiant`                  | Cybersecurity | 2.0    | 40M        | rss                                         | Mandiant threat intel.                   |
+| `dfir_report`               | Cybersecurity | 2.0    | 35M        | rss                                         | DFIR Report intrusion analysis.          |
+| `cisa_kev`                  | Cybersecurity | 2.0    | 10M        | url_json                                    | CISA Known Exploited Vulnerabilities.    |
+| `primus_fineweb`            | Cybersecurity | 1.9    | 5.0B       | `trendmicro-ailab/Primus-FineWeb`           | Cybersec-filtered FineWeb.               |
+| `local_cloud_security`      | Cybersecurity | 1.9    | 1.2B       | `data/cloud_nl/`                            | Cloud audit logs (NL narratives).        |
+| `local_security_logs`       | Cybersecurity | 1.9    | 1.2B       | `data/log_nl/`                              | Auth/web/Sysmon logs (NL narratives).    |
+| `unit42`                    | Cybersecurity | 1.9    | 40M        | rss                                         | Palo Alto Unit 42.                       |
+| `talos`                     | Cybersecurity | 1.9    | 40M        | rss                                         | Cisco Talos.                             |
+| `github_advisory`           | Cybersecurity | 1.9    | 100M       | github_repo                                 | GitHub Security Advisory DB.             |
+| `all_cve_records`           | Cybersecurity | 1.8    | 6.0B       | nvd_json_feeds                              | NVD CVE JSON feeds 2002–present.        |
+| `nvd_cve`                   | Cybersecurity | 1.8    | 4.8B       | circl_ndjson_dump                           | CIRCL CVE List v5 dump.                  |
+| `academic_security_papers`  | Cybersecurity | 1.8    | 120M       | pdf_manifest                                | Security conference papers.              |
+| `mitre_attack_stix`         | Cybersecurity | 1.8    | 70M        | github_repo                                 | MITRE ATT&CK STIX.                       |
+| `exploitdb`                 | Code          | 1.8    | 140M       | github_repo                                 | Exploit Database PoC corpus.             |
+| `metasploit`                | Code          | 1.7    | 180M       | github_repo                                 | Metasploit Framework modules.            |
+| `cloudflare_security`       | Cybersecurity | 1.6    | 30M        | rss                                         | Cloudflare security research.            |
+| `sigmahq_rules`             | Cybersecurity | 1.6    | 70M        | github_repo                                 | SigmaHQ detection rules.                 |
+| `elastic_rules`             | Cybersecurity | 1.6    | 70M        | github_repo                                 | Elastic detection rules.                 |
+| `threat_report_pdfs`        | Cybersecurity | 1.5    | 90M        | pdf_manifest                                | Vendor threat report PDFs.               |
+| `splunk_rules`              | Cybersecurity | 1.5    | 60M        | github_repo                                 | Splunk security detections.              |
+| `zeek_scripts`              | Cybersecurity | 1.5    | 40M        | github_repo                                 | Zeek scripts and packages.               |
+| `secure_code_python`        | Code          | 1.4    | 4.0B       | `bigcode/the-stack-dedup`                   | Python (dedup).                          |
+| `secure_code_c`             | Code          | 1.4    | 3.0B       | `bigcode/the-stack-dedup`                   | C (dedup).                               |
+| `secure_code_shell`         | Code          | 1.4    | 2.0B       | `bigcode/the-stack-dedup`                   | Shell (dedup).                           |
+| `secure_code_javascript`    | Code          | 1.3    | 2.4B       | `bigcode/the-stack-dedup`                   | JavaScript (dedup).                      |
+| `secure_code_typescript`    | Code          | 1.3    | 2.0B       | `bigcode/the-stack-dedup`                   | TypeScript (dedup).                      |
+| `secure_code_java`          | Code          | 1.3    | 2.0B       | `bigcode/the-stack-dedup`                   | Java (dedup).                            |
+| `secure_code_php`           | Code          | 1.3    | 1.6B       | `bigcode/the-stack-dedup`                   | PHP (dedup).                             |
+| `swallow_code_v2`           | Code          | 1.3    | 5.0B       | `tokyotech-llm/swallow-code-v2`             | Refined Python (4-stage LLM pipeline).   |
+| `secure_code_cpp`           | Code          | 1.2    | 3.0B       | `bigcode/the-stack-dedup`                   | C++ (dedup).                             |
+| `secure_code_rust`          | Code          | 1.2    | 2.4B       | `bigcode/the-stack-dedup`                   | Rust (dedup).                            |
+| `secure_code_go`            | Code          | 1.2    | 2.4B       | `bigcode/the-stack-dedup`                   | Go (dedup).                              |
+| `nemotron_cc_math`          | Reasoning     | 1.0    | 18.0B      | `nvidia/Nemotron-CC-Math-v1` (`4plus`)      | High-quality math/reasoning corpus.      |
+| `finemath`                  | Reasoning     | 0.9    | 3.0B       | `HuggingFaceTB/finemath` (`finemath-4plus`) | Math reasoning.                          |
+| `fineweb_edu`               | General       | 0.7    | 4.0B       | `HuggingFaceFW/fineweb-edu` (`sample-10BT`) | Educational web content.                 |
+| `climbmix`                  | General       | 0.6    | 5.0B       | `karpathy/climbmix-400b-shuffle`            | General pretraining, suppressed.         |
+| `wikipedia`                 | General       | 0.5    | 3.0B       | `wikimedia/wikipedia` (`20231101.en`)       | English Wikipedia, suppressed.           |
+
+> **46 sources total.** Instruction/chat/DPO-style datasets are **not** here — they live in the SFT pipeline (Section 3).
+
+> ⚠️ **Loss-spike prevention:** Raw logs (`.log`, `.xml`, `.json`) are converted to natural-language
+> narratives by `convert_logs_to_nl.py` before pretraining:
+>
+> ```
+> data/log/*   ──► convert_logs_to_nl.py ──► data/log_nl/*.jsonl     (local_security_logs)
+> data/cloud/* ──► convert_logs_to_nl.py ──► data/cloud_nl/*.jsonl   (local_cloud_security)
+> ```
 
 ---
 
-## 4. Data Source Dataclass Schema
+## 3. SFT Data
 
-A frozen dataclass (`Source`) defines the configuration contract for each pretraining data source:
-* `name`: Unique data source identifier.
-* `source_type`: Integration pattern (e.g., `rss`, `github_repo`, `local_files`, `brightdata_scraper`, `url_json`).
-* `domain` & `primary_subdomain`: High-level categorization.
-* `expected_tier`: Quality assessment (`GOLD`, `SILVER`, or `BRONZE_CLEAN`).
-* `estimated_tokens` & `max_tokens`: Size estimation and hard bounds.
-* `description`: Contextual summary of the source.
-* `config`: Source-specific parameters (URLs, directories, branches).
+SFT trains on a mixture of (A) bundled local datasets in `data/sft/` and (B) external
+HuggingFace datasets downloaded by `scripts/data/download_sft_data.py`. Epoch counts
+oversample small high-value datasets.
+
+### 3A. Local bundled datasets (`data/sft/*.jsonl`)
+
+Wired into the training mixture via `tasks/cybersec_sft.py` (default epochs shown) and `scripts/chat/chat_sft.py`.
+
+
+| Dataset              | File                                           | Language | Default Epochs | Notes                                                |
+| :--------------------- | :----------------------------------------------- | :--------- | :--------------- | :----------------------------------------------------- |
+| CyberDefensive       | `cyber_defensive_conversations(_en).jsonl`     | ID + EN  | 1              | Defensive cybersec Q&A (SOC, triage, IR).            |
+| CloudSecurity        | `cloud_security_sft(_en).jsonl`                | ID + EN  | 20             | Cloud IR (AWS, Azure, GCP).                          |
+| MultiTurnSOC         | `multi_turn_soc_sft.jsonl`                     | EN       | 30             | Multi-turn SOC dialogues (oversampled).              |
+| ToolOrientedCyber    | `tool_oriented_cyber_sft.jsonl`                | EN       | 20             | Tool-oriented cybersec (nmap, burp…).               |
+| ToolCalling          | `tool_calling_conversations_en.jsonl`          | EN       | 15             | Tool-calling (WHOIS, dig, hashes).                   |
+| MythosCombined       | `mythos_combined_sft(_en).jsonl`               | ID + EN  | 4              | Offensive/defensive narrative scenarios.             |
+| MythosToolCalling    | `mythos_tool_calling(_en).jsonl`               | ID + EN  | 4              | Mythos with native tool calling.                     |
+| mesosferValidation   | `mesosfer_validation_conversations(_en).jsonl` | ID + EN  | 2              | Domain alignment validation.                         |
+| GeminiTeacher        | `gemini_teacher_conversations.jsonl`           | EN       | 2              | Gemini-distilled teacher conversations.              |
+| Identity             | `identity_conversations(_en).jsonl`            | ID + EN  | 2              | Synthetic identity conversations.                    |
+| Rules                | `rules.jsonl`                                  | EN       | 4              | Safety/format/behavioral instructions.               |
+| SafetyArtifact       | `safety_artifact_conversations_en.jsonl`       | EN       | 4              | Refusals for attack automation vs allowed artifacts. |
+| InstructionFollowing | `instruction_following_conversations_en.jsonl` | EN       | 4              | Format constraints (json, word count).               |
+
+### 3B. External datasets (downloaded by `download_sft_data.py` into `data/sft/`)
+
+
+| Key                          | Source / Origin                                         | Max Rows | Default Epochs | Notes                                                                                                       |
+| :----------------------------- | :-------------------------------------------------------- | :--------- | :--------------- | :------------------------------------------------------------------------------------------------------------ |
+| `primus_instruct`            | `trendmicro-ailab/Primus-Instruct`                      | 100K     | 1              | Trend Micro cybersec instructions (**gated**).                                                              |
+| `primus_reasoning`           | `trendmicro-ailab/Primus-Reasoning`                     | 50K      | 1              | Cybersec chain-of-thought (**gated**).                                                                      |
+| `cybernative_vuln_dpo`       | `CyberNative/Code_Vulnerability_Security_DPO`           | 10K      | 3              | Vulnerable vs fixed code (DPO→SFT).                                                                        |
+| `openhermes`                 | `teknium/OpenHermes-2.5`                                | 50K      | 1              | General conversational instruction.                                                                         |
+| `ultrachat`                  | `HuggingFaceH4/ultrachat_200k`                          | 100K     | 1              | Multi-turn conversations.                                                                                   |
+| `trendyol_cyber_sft`         | `Trendyol/...-Cybersecurity-Instruction-Tuning-Dataset` | 53K      | 1              | Defensive cybersec Q&A.                                                                                     |
+| `tiamz_cybersec`             | `Tiamz/cybersecurity-instruction-dataset`               | 15K      | 2              | Cybersec instruction Q&A.                                                                                   |
+| `alpaca_indonesian`          | `ilhamfadheel/alpaca-cleaned-indonesian`                | 55K      | 1              | Indonesian instruction-following.                                                                           |
+| `competition_math_sft`       | `hendrycks/competition_math`                            | 10K      | 2              | Math with step-by-step solutions.                                                                           |
+| `magpie_reasoning_sft`       | `Magpie-Align/Magpie-Reasoning-V2`                      | 50K      | 1              | DeepSeek-R1-Llama reasoning.                                                                                |
+| `open_thoughts_sft`          | `open-thoughts/OpenThoughts-114k`                       | 50K      | 1              | Reasoning / CoT conversations.                                                                              |
+| `nist_cybersec`              | `ethanolivertroy/nist-cybersecurity-training`           | 50K      | 1              | NIST cybersec training conversations.                                                                       |
+| `fenrir_v2`                  | `AlicanKiraz0/Cybersecurity-Dataset-Fenrir-v2.1`        | 99K      | 1              | Cybersec Q&A (OWASP/MITRE/NIST).                                                                            |
+| `code_feedback`              | `m-a-p/Code-Feedback`                                   | 50K      | 1              | Multi-language coding feedback/instruction.                                                                 |
+| `numinamath_cot`             | `AI-MO/NuminaMath-CoT`                                  | 50K      | 1              | Competition math with chain-of-thought.                                                                     |
+| `aquilax_security_reasoning` | `tuandunghcmut/AquilaX-AI-security-assistant-reasoning` | 18.3K    | 2              | Cybersec vuln-analysis reasoning (CoT). Reasoning template stripped of Llama-3 reserved tokens (**gated**). |
+| `xlam_function_calling`      | `Salesforce/xlam-function-calling-60k`                  | 20K      | 1              | Generic named tool-calling (APIGen, cc-by-4.0); rendered as `<\|tool_start\|>` JSON `{name, arguments}` — shell, scanners, SQL, HTTP (**gated**). |
+
+> All external datasets above are wired into the default training mixture
+> (`tasks/cybersec_sft.py` → `build_cybersec_sft_tasks`, with CLI epoch flags in
+> `scripts/chat/chat_sft.py`). A source is only trained on if its `data/sft/*.jsonl`
+> file exists (download it first via `download_sft_data.py`); missing files are skipped.
 
 ---
 
-## 5. Pretraining Datasets & Categories
+## 4. Eval Data
 
-### A. Curated Seeds & Deep Reasoning
-* **`primus_seed`**: Trend Micro Curated Seed Corpus (`trendmicro-ailab/Primus-Seed`) containing high-quality security articles, capped at **2.0B tokens**.
-* **`primus_reasoning`**: Distilled cybersecurity chain-of-thought reasoning (`trendmicro-ailab/Primus-Reasoning`) distilled from frontier models, capped at **1.5B tokens**.
-* **`brightdata_cybersec`**: Scraped threat intelligence blogs via BrightData Proxy integration, capped at **500M tokens**.
-* **`numinamath_cot`**: 860K+ competition math problems with chain-of-thought solutions (`AI-MO/NuminaMath-CoT`), capped at **3.0B tokens**.
+Evaluation runs through CORE + domain probes (`scripts/eval/base_eval.py`,
+`scripts/chat/chat_eval.py`). MCQ tasks report centered accuracy vs random baseline.
 
-### B. Scaled Cybersecurity
-* **`trendyol_cyber`**: Cybersecurity instruction tuning dataset (`Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset`), scaled to **2.4B tokens**.
-* **`all_cve_records`**: Sourced from NVD JSON feeds (2002–present), scaled to **6.0B tokens**.
-* **`circl_vuln_patch`**: 39K vulnerabilities with real patches (`CIRCL/vulnerability-cwe-patch`), scaled to **2.4B tokens**.
-* **`nist_cybersec`**: NIST cybersecurity training documents (`ethanolivertroy/nist-cybersecurity-training`), scaled to **4.8B tokens**.
-* **`fenrir_v2`**: OWASP/MITRE/NIST Q&A (`AlicanKiraz0/Cybersecurity-Dataset-Fenrir-v2.1`), scaled to **2.4B tokens**.
-* **`primus_nemotron_cc`**: Filtered cybersecurity text (`trend-cybertron/Primus-Nemotron-CC`), scaled to **7.6B tokens**.
-* **`primus_fineweb`**: Cybersecurity-filtered FineWeb corpus (`trendmicro-ailab/Primus-FineWeb`), scaled to **5.0B tokens**.
-* **`nvd_cve`**: CIRCL Vulnerability-Lookup CVE List v5 ndjson dump, scaled to **4.8B tokens**.
+### 4A. General (CORE)
 
-### C. Local Security & Natural Language Log Narratives
-> ⚠️ **Loss Spike Prevention:** Raw log files (`.log`, `.xml`, `.json`) are converted to natural language narratives via `convert_logs_to_nl.py` before pretraining to prevent sudden gradient shocks.
 
-```
-data/log/*.{log,xml,jsonl}  ──► convert_logs_to_nl.py ──► data/log_nl/*.jsonl
-data/cloud/*.json           ──► convert_logs_to_nl.py ──► data/cloud_nl/*.jsonl
-```
+| Task                     | Source                 | Shots | Notes                           |
+| :------------------------- | :----------------------- | :------ | :-------------------------------- |
+| ARC-Easy / ARC-Challenge | `tasks/arc.py`         | —    | Science MCQ.                    |
+| MMLU                     | `cais/mmlu`            | 5     | Broad knowledge MCQ.            |
+| GSM8K                    | `tasks/gsm8k.py`       | —    | Grade-school math (generative). |
+| HumanEval                | `tasks/humaneval.py`   | —    | Code generation (pass@1).       |
+| SpellingBee              | `tasks/spellingbee.py` | —    | Character/spelling probe.       |
 
-**Supported Log Formats & Narrative Targets:**
+### 4B. Cybersecurity domain
 
-| Input Format | Source Files | MITRE Mapping |
+
+| Task                     | Source                                          | Shots | Notes                                                          |
+| :------------------------- | :------------------------------------------------ | :------ | :--------------------------------------------------------------- |
+| `mmlu_computer_security` | `cais/mmlu` (computer_security)                 | 5     | Cybersec subset of MMLU.                                       |
+| `cybermetric_500`        | `tuandunghcmut/cybermetric_500_v1`              | 3     | Cybersecurity knowledge MCQ.                                   |
+| `secbench_mcq_en`        | `secbench-hf/SecBench` (`data/MCQs_2730.jsonl`) | 3     | English single-answer MCQs (~652); includes Logical Reasoning. |
+
+### 4C. Coding domain (CodeMMLU, 3-shot)
+
+
+| Task                            | Subset               | Source               |
+| :-------------------------------- | :--------------------- | :--------------------- |
+| `codemmlu_programming_syntax`   | programming_syntax   | `Fsoft-AIC/CodeMMLU` |
+| `codemmlu_software_principles`  | software_principles  | `Fsoft-AIC/CodeMMLU` |
+| `codemmlu_code_completion`      | code_completion      | `Fsoft-AIC/CodeMMLU` |
+| `codemmlu_code_repair`          | code_repair          | `Fsoft-AIC/CodeMMLU` |
+| `codemmlu_execution_prediction` | execution_prediction | `Fsoft-AIC/CodeMMLU` |
+
+---
+
+## 5. Security Vocabulary Markers
+
+Keyword tuples used for filtering, quality scoring, and routing in `prepare_data.py`:
+
+* **`CAUSAL_MARKERS`** — cause-effect / vulnerability impact (e.g. *"exploits"*, *"bypasses"*, *"allows attacker to"*).
+* **`MECHANISM_TERMS`** — memory corruption / RE concepts (e.g. *"buffer overflow"*, *"rop chain"*, *"use-after-free"*).
+* **`MARKETING_TERMS`** — promotional phrases (e.g. *"book a demo"*, *"free trial"*); used as a **negative filter**.
+* **`SECURITY_STACK_TERMS`** — infrastructure / defensive tooling (e.g. *"firewall"*, *"siem"*, *"yara"*).
+* **`SECURITY_CODE_TERMS`** — low-level / exploitation vocabulary (e.g. *"shellcode"*, *"ghidra"*, *"vtable"*, *"syscall"*).
+
+---
+
+## 6. Data Source Schema
+
+A frozen dataclass (`Source`) defines the config contract for RSS/GitHub/PDF/scraper sources:
+`name`, `source_type` (`rss`, `github_repo`, `local_files`, `brightdata_scraper`, `url_json`, `pdf_manifest`,
+`nvd_json_feeds`, `circl_ndjson_dump`), `domain` & `primary_subdomain`, `expected_tier`
+(`GOLD`/`SILVER`/`BRONZE_CLEAN`), `estimated_tokens` & `max_tokens`, `description`, and `config`.
+
+HuggingFace sources are configured directly in `DATASET_SOURCES` with `hf_name`, optional `hf_subset`,
+`text_column`, `split`, `streaming`, and `max_tokens`.
+
+---
+
+## 7. Technical Notes
+
+1. **Keyword filtering:** `MARKETING_TERMS` suppresses vendor "sales" language; technical content with
+   `CAUSAL_MARKERS` / `MECHANISM_TERMS` is preferred.
+2. **Dynamic token scaling:** `int(base_value * scale)` with `scale = target_tokens / 500_000_000`
+   keeps inter-domain ratios balanced when scaling toward ~100B tokens.
+3. **Data tiering:** *Gold* (curated cybersec knowledge, synthetic SOC/IR, Primus-Seed/Reasoning),
+   *Silver* (GitHub repos, Sigma/ExploitDB, The-Stack code), *Bronze→Gold* (raw logs upgraded after
+   NL-narrative conversion).
+4. **Interleaving:** Temperature-weighted sampling with `cluster_size=32`, `sampling_temperature=1.2`
+   in `interleaved_shuffle_main` reduces abrupt domain transitions and single-domain dominance.
+5. **Pretraining vs SFT boundary:** Pretraining uses raw-text corpora only. Instruction/chat/DPO/CoT
+   datasets belong to SFT (`download_sft_data.py`), never to pretraining.
+
+## 8. Tool-Calling Token Protocol
+
+Tool-calling is taught during SFT using mesosfer's own special tokens (no
+dependency on Llama-3 / OpenAI tool formats):
+
+| Token pair | Meaning | Supervised? |
 | :--- | :--- | :--- |
-| Syslog (auth/privesc) | `auth.log`, `auth2.log`, `privesc.log`, `syslog_benign.log` | T1110.001, T1003.008, T1548.003 |
-| Apache + ModSecurity | `apache.log`, `apache2.log` | T1190 |
-| CEF | `cef.log` | Multi-vendor session |
-| Zeek conn.log | `conn.log`, `conn2.log` | T1071.001 |
-| Suricata/Zeek JSONL | `log.jsonl`, `c2_dns.jsonl` | T1071.001, T1071.004 |
-| Sysmon XML | `sysmon.xml`, `webshell.xml` | T1059.001, T1547.001, T1505.003 |
-| Windows Security Event XML | `winevent.xml`, `winevent2.xml` | T1550.002, T1053.005 |
-| AWS CloudTrail | `cloudtrail.json`, `cloudtrail2.json` | T1562.008, T1136.003 |
-| Azure Activity | `azure_activity.json`, `azure_activity2.json` | T1098.003 |
-| GCP Audit | `gcp_audit.json`, `gcp_audit2.json` | T1078.004, T1530 |
+| `<\|python_start\|>` … `<\|python_end\|>` | Built-in Python REPL/calculator (executed by the engine at inference) | yes |
+| `<\|tool_start\|>` … `<\|tool_end\|>` | Generic named tool call. Payload is JSON `{"name": ..., "arguments": {...}}` — covers shell, network scanners, SQL, HTTP, etc. | yes |
+| `<\|output_start\|>` … `<\|output_end\|>` | Tool / REPL result returned from the environment | no (not supervised) |
 
-* **`local_incident_response`**: Synthetic IR reports (`data/synthetic-ir/`), scaled to **1.44B tokens**.
-* **`local_soc_synthetic`**: Synthetic SOC analyst conversations (`data/synthetic-soc/`), scaled to **1.44B tokens**.
-* **`local_reverse_engineering`**: RE/exploitation analysis (`data/reverse-engineering/`), scaled to **1.2B tokens**.
-* **`local_cloud_security`**: Audit logs as NL narratives (`data/cloud_nl/`), scaled to **1.2B tokens**.
-* **`local_security_logs`**: System logs as NL narratives (`data/log_nl/`), scaled to **1.2B tokens**.
+Sources:
+- **Local** (`data/sft/`): `tool_calling_conversations_en.jsonl`, `mythos_tool_calling*.jsonl`, `tool_oriented_cyber_sft.jsonl` (generated by `dev/` scripts).
+- **External** (HF): `xlam_function_calling` (Section 3B), converted to the generic `<|tool_start|>` format by `convert_function_calling` in `download_sft_data.py`.
 
-### D. Secure Code & Refined Snippets
-Sourced from `bigcode/the-stack-dedup` in streaming mode:
-* **`secure_code_python`**: `data/python`, scaled to **6.0B tokens**.
-* **`secure_code_c`**: `data/c`, scaled to **4.2B tokens**.
-* **`secure_code_cpp`**: `data/cpp`, scaled to **4.8B tokens**.
-* **`secure_code_rust`**: `data/rust`, scaled to **3.6B tokens**.
-* **`secure_code_go`**: `data/go`, scaled to **3.6B tokens**.
-* **`secure_code_shell`**: `data/shell`, scaled to **3.0B tokens**.
-* **`swallow_code_v2`**: Refined Python code from TokyoTech (`tokyotech-llm/swallow-code-v2 stage4-llm-rewrite`), scaled to **8.0B tokens**.
-* **`code_feedback`**: Coding feedback and instruction pairs (`m-a-p/Code-Feedback`), scaled to **3.0B tokens**.
-
-### E. Exploit Frameworks
-* **`metasploit`**: Metasploit Framework modules (`rapid7/metasploit-framework`), scaled to **180M tokens**.
-* **`exploitdb`**: Exploit Database PoC corpus (`offensive-security/exploitdb`), scaled to **140M tokens**.
-
-### F. General Reference & Math
-* **`climbmix`**: ClimbMix pretraining data (`karpathy/climbmix-400b-shuffle`), scaled to **5.0B tokens**.
-* **`wikipedia`**: English Wikipedia (`wikimedia/wikipedia` subset `20231101.en`), scaled to **3.0B tokens**.
-* **`fineweb_edu`**: Educational web content (`HuggingFaceFW/fineweb-edu` subset `sample-10BT`), scaled to **4.0B tokens**.
-* **`openhermes`**: Conversation/instruction data (`teknium/OpenHermes-2.5`), scaled to **4.2B tokens**.
-* **`finemath`**: Mathematical reasoning corpus (`HuggingFaceTB/finemath`), scaled to **3.0B tokens**.
-
----
-
-## 6. Technical Notes & Implications
-
-1. **Keyword-Based Filtering & Heuristics:** Constants such as `MARKETING_TERMS` ensure the model does not learn "sales" language from security vendor blogs, focusing instead on pure technical content containing `CAUSAL_MARKERS` and `MECHANISM_TERMS`.
-
-2. **Dynamic Token Scaling:** Using `int(base_value * scale)` allows scaling from baseline target sizes to production (~100B+ tokens) without manually rewriting configs. The formula `scale = target_tokens / 500_000_000` keeps inter-domain ratios balanced.
-
-3. **Data Tiering (Gold, Silver, Bronze):**
-   - **Gold:** Structured, clean, high-weight cybersecurity knowledge (Academic Papers, Mandiant/Project Zero Intel, Synthetic SOC/IR data, Primus-Seed/Reasoning).
-   - **Silver:** Valid but potentially noisy (GitHub repos, Sigma rules, ExploitDB, The Stack code).
-   - **Bronze Clean → Gold:** Raw logs that have been converted to NL narratives via `convert_logs_to_nl.py`. Tier effectively upgraded from Bronze to Gold after conversion.
-
-4. **Shuffling Mechanism (Interleaving):** Temperature-weighted interleaved sampling with `cluster_size=32` and `sampling_temperature=1.2` in `interleaved_shuffle_main`. Higher cluster_size reduces abrupt domain transitions; temperature >1.0 flattens the sampling distribution to prevent any single domain from dominating consecutive batches.
+> The generic `<|tool_start|>` payload carries the tool name, so a single token
+> pair supports every tool family. At inference the model only *emits* tool calls;
+> an external harness is responsible for execution — shell/network tools must never
+> be auto-executed by the model server.

@@ -395,14 +395,10 @@ def _source_to_dataset_config(source):
 
 DOMAIN_SAMPLING_WEIGHTS = {
     # Cybersecurity — high priority (~45% effective share)
-    "trendyol_cyber":          1.9,
     "all_cve_records":         1.8,
     "circl_vuln_patch":        2.3,
-    "nist_cybersec":           1.8,
-    "fenrir_v2":               1.9,
     "primus_nemotron_cc":      2.1,
     "primus_fineweb":          1.9,
-    "cybernative_vuln_dpo":    2.0,
     "nvd_cve":                 1.8,
     "local_incident_response": 2.2,
     "local_soc_synthetic":     2.1,
@@ -438,14 +434,16 @@ DOMAIN_SAMPLING_WEIGHTS = {
     "secure_code_rust":        1.2,
     "secure_code_go":          1.2,
     "secure_code_shell":       1.4,
+    "secure_code_javascript":  1.3,
+    "secure_code_typescript":  1.3,
+    "secure_code_java":        1.3,
+    "secure_code_php":         1.3,
     "metasploit":              1.7,
     "exploitdb":               1.8,
     "swallow_code_v2":         1.3,
-    "code_feedback":           1.5,  # Multi-language coding feedback & instruction
     # Instruction / reasoning (~15% effective share)
-    "openhermes":              0.9,
     "finemath":                0.9,
-    "numinamath_cot":          1.1,  # Competition math with chain-of-thought
+    "nemotron_cc_math":        1.0,  # NVIDIA high-quality math pretraining (score 4+)
 }
 
 # =============================================================================
@@ -456,19 +454,13 @@ DATASET_SOURCES = {
     # =========================================================================
     # CYBERSECURITY (Public Replacements)
     # =========================================================================
-    # max_tokens here is an UPPER BOUND. Small datasets (trendyol 99K rows,
-    # circl 39K rows, fenrir 99K rows) will not reach this limit.
+    # max_tokens here is an UPPER BOUND. Small datasets (circl 39K rows) will
+    # not reach this limit.
     # Total actual ~4.5-5B tokens, compute-optimal for d20 on L4 (ratio ~11x).
-    "trendyol_cyber": {
-        "hf_name": "Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset",
-        "description": "Cybersecurity instruction tuning dataset",
-        "category": "cybersecurity",
-        "max_tokens": 2_400_000_000,
-        "text_column": None,
-        "split": "train",
-        "streaming": False,
-        "format": "instruction",
-    },
+    # NOTE: Instruction/chat/DPO-style HF datasets (trendyol_cyber, nist_cybersec,
+    # fenrir_v2, cybernative_vuln_dpo, openhermes, code_feedback, numinamath_cot,
+    # competition_math) were moved to scripts/data/download_sft_data.py — they are
+    # SFT data, not pretraining corpora.
     "all_cve_records": {
         "source_type": "nvd_json_feeds",
         "description": "NVD CVE 2.0 JSON feeds, yearly bootstrap from 2002-current",
@@ -487,27 +479,6 @@ DATASET_SOURCES = {
         "streaming": False,
         "format": "vuln_patch",
     },
-    "nist_cybersec": {
-        "hf_name": "ethanolivertroy/nist-cybersecurity-training",
-        "description": "NIST cybersecurity documents",
-        "category": "cybersecurity",
-        "max_tokens": 4_800_000_000,
-        "text_column": None,
-        "split": "train",
-        "streaming": True,
-        "data_files": {"train": "train.jsonl"},
-        "format": "messages",
-    },
-    "fenrir_v2": {
-        "hf_name": "AlicanKiraz0/Cybersecurity-Dataset-Fenrir-v2.1",
-        "description": "99K high-quality cybersec Q&A, OWASP/MITRE/NIST mapped",
-        "category": "cybersecurity",
-        "max_tokens": 2_400_000_000,
-        "text_column": None,
-        "split": "train",
-        "streaming": False,
-        "format": "chat",
-    },
     "primus_nemotron_cc": {
         "hf_name": "trend-cybertron/Primus-Nemotron-CC",
         "description": "7.6B tokens of cybersecurity text filtered from Nemotron-CC (gated, requires HF token)",
@@ -525,16 +496,6 @@ DATASET_SOURCES = {
         "text_column": "text",
         "split": "train",
         "streaming": True,
-    },
-    "cybernative_vuln_dpo": {
-        "hf_name": "CyberNative/Code_Vulnerability_Security_DPO",
-        "description": "Synthetic vulnerable vs fixed code pairs across many languages",
-        "category": "cybersecurity",
-        "max_tokens": 360_000_000,
-        "text_column": None,
-        "split": "train",
-        "streaming": False,
-        "format": "dpo",
     },
     "nvd_cve": {
         "source_type": "circl_ndjson_dump",
@@ -627,7 +588,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "Python security-related repositories",
     "category": "code",
-    "max_tokens": 6_000_000_000,
+    "max_tokens": 4_000_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -638,7 +599,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "C security-related repositories",
     "category": "code",
-    "max_tokens": 4_200_000_000,
+    "max_tokens": 3_000_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -649,7 +610,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "C++ security-related repositories",
     "category": "code",
-    "max_tokens": 4_800_000_000,
+    "max_tokens": 3_000_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -660,7 +621,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "Rust security-related repositories",
     "category": "code",
-    "max_tokens": 3_600_000_000,
+    "max_tokens": 2_400_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -671,7 +632,7 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "Go security-related repositories",
     "category": "code",
-    "max_tokens": 3_600_000_000,
+    "max_tokens": 2_400_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
@@ -682,11 +643,55 @@ DATASET_SOURCES = {
     "hf_name": "bigcode/the-stack-dedup",
     "description": "Shell security-related repositories",
     "category": "code",
-    "max_tokens": 3_000_000_000,
+    "max_tokens": 2_000_000_000,
     "text_column": "content",
     "split": "train",
     "streaming": True,
     "data_dir": "data/shell",
+},
+
+"secure_code_javascript": {
+    "hf_name": "bigcode/the-stack-dedup",
+    "description": "JavaScript security-related repositories",
+    "category": "code",
+    "max_tokens": 2_400_000_000,
+    "text_column": "content",
+    "split": "train",
+    "streaming": True,
+    "data_dir": "data/javascript",
+},
+
+"secure_code_typescript": {
+    "hf_name": "bigcode/the-stack-dedup",
+    "description": "TypeScript security-related repositories",
+    "category": "code",
+    "max_tokens": 2_000_000_000,
+    "text_column": "content",
+    "split": "train",
+    "streaming": True,
+    "data_dir": "data/typescript",
+},
+
+"secure_code_java": {
+    "hf_name": "bigcode/the-stack-dedup",
+    "description": "Java security-related repositories",
+    "category": "code",
+    "max_tokens": 2_000_000_000,
+    "text_column": "content",
+    "split": "train",
+    "streaming": True,
+    "data_dir": "data/java",
+},
+
+"secure_code_php": {
+    "hf_name": "bigcode/the-stack-dedup",
+    "description": "PHP security-related repositories",
+    "category": "code",
+    "max_tokens": 1_600_000_000,
+    "text_column": "content",
+    "split": "train",
+    "streaming": True,
+    "data_dir": "data/php",
 },
 
 "swallow_code_v2": {
@@ -698,22 +703,11 @@ DATASET_SOURCES = {
     "hf_name": "tokyotech-llm/swallow-code-v2",
     "description": "High-quality Python code from The-Stack-v2, refined via 4-stage LLM pipeline (TokyoTech, Apache-2.0)",
     "category": "code",
-    "max_tokens": 8_000_000_000,
+    "max_tokens": 5_000_000_000,
     "text_column": "text",
     "split": "train",
     "streaming": True,
     "hf_subset": "stage4-llm-rewrite",
-},
-
-"openhermes": {
-    "hf_name": "teknium/OpenHermes-2.5",
-    "description": "High-quality conversational instruction tuning",
-    "category": "instruction",
-    "max_tokens": 4_200_000_000,
-    "text_column": None,
-    "split": "train",
-    "streaming": True,
-    "format": "messages",
 },
 
 "finemath": {
@@ -722,6 +716,17 @@ DATASET_SOURCES = {
     "description": "Mathematical reasoning corpus",
     "category": "instruction",
     "max_tokens": 3_000_000_000,
+    "text_column": "text",
+    "split": "train",
+    "streaming": True,
+},
+
+"nemotron_cc_math": {
+    "hf_name": "nvidia/Nemotron-CC-Math-v1",
+    "hf_subset": "4plus",
+    "description": "High-quality math pretraining corpus extracted from Common Crawl (NVIDIA, 52B tokens, score 4+)",
+    "category": "instruction",
+    "max_tokens": 18_000_000_000,
     "text_column": "text",
     "split": "train",
     "streaming": True,
@@ -748,28 +753,6 @@ DATASET_SOURCES = {
     "text_column": "text",
     "split": "train",
     "streaming": True,
-},
-
-"numinamath_cot": {
-    "hf_name": "AI-MO/NuminaMath-CoT",
-    "description": "860K+ competition math problems with chain-of-thought solutions for multi-step reasoning",
-    "category": "instruction",
-    "max_tokens": 3_000_000_000,
-    "text_column": None,
-    "split": "train",
-    "streaming": True,
-    "format": "instruction",  # Changed to instruction for robust custom formatting
-},
-
-"code_feedback": {
-    "hf_name": "m-a-p/Code-Feedback",
-    "description": "Multi-language coding feedback and instruction pairs for strengthening code comprehension",
-    "category": "code",
-    "max_tokens": 3_000_000_000,
-    "text_column": None,
-    "split": "train",
-    "streaming": True,
-    "format": "messages",
 },
 
 "brightdata_cybersec": {
@@ -1587,6 +1570,10 @@ def is_high_quality_security_text(text, source_name):
         "secure_code_rust",
         "secure_code_go",
         "secure_code_shell",
+        "secure_code_javascript",
+        "secure_code_typescript",
+        "secure_code_java",
+        "secure_code_php",
     ]
 
     if source_name in SECURITY_CODESETS:

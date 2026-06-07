@@ -79,13 +79,13 @@ Data preparation must be completed **before** training. Run these steps in order
 This single command automatically downloads the ClimbMix general pretraining shards (~17 GB) and prepares/interleaves the cybersecurity domain datasets (CVE feeds, HuggingFace cybersec datasets, and local files):
 
 ```bash
-python scripts/data/prepare_data.py
+python -m scripts.data.prepare_data
 
 # Check progress
-python scripts/data/prepare_data.py --status
+python -m scripts.data.prepare_data --status
 
 # Dry-run to preview sources
-python scripts/data/prepare_data.py --dry-run
+python -m scripts.data.prepare_data --dry-run
 ```
 
 #### Step 2b — Convert raw security logs to natural language
@@ -122,7 +122,7 @@ python -m scripts.eval.tok_eval
 Requires Steps 2a, 2b, and 3 to be complete.
 
 ```bash
-# Depth 24 — recommended config for MI300X / single GPU
+# Depth 32 (~11.5B params) — default config, ~100B tokens at ratio=15
 python -m scripts.train.base_train \
     --depth=32 \
     --target-param-data-ratio=15 \
@@ -131,7 +131,7 @@ python -m scripts.train.base_train \
     --window-pattern=L \
     --save-every=1000 \
     --core-metric-every=1000 \
-    --run=d24_run
+    --run=d32_run
 
 # Or use the full pipeline script (handles setup + tokenizer + pretrain + SFT)
 WANDB_RUN=my_run bash runs/speedrun.sh
@@ -154,8 +154,29 @@ python -m scripts.eval.base_eval \
 
 ### 6. Supervised Fine-Tuning (SFT)
 
-Requires Step 4 to be complete. Automatically includes cybersecurity SFT datasets
-from `data/sft/`.
+Requires Step 4 to be complete.
+
+#### Step 6a — Download external SFT datasets (recommended)
+
+The local bundled SFT files in `data/sft/*.jsonl` ship with the repo, but the
+external HuggingFace instruction/reasoning datasets must be fetched first.
+Gated datasets (`Primus-*`, `AquilaX`) require `HF_TOKEN` and accepting the
+dataset terms — without a token they are simply skipped.
+
+```bash
+python -m scripts.data.download_sft_data
+
+# List available SFT sources
+python -m scripts.data.download_sft_data --list
+
+# Download only specific sources
+# python -m scripts.data.download_sft_data --sources openhermes ultrachat
+```
+
+#### Step 6b — Run SFT
+
+Automatically mixes the local + downloaded cybersecurity SFT datasets from
+`data/sft/` (any missing file is skipped with a warning).
 
 ```bash
 python -m scripts.chat.chat_sft \
@@ -252,9 +273,8 @@ Valid `reason` values: `inappropriate_response`, `continuous_repetition`, `factu
 ## Full Pipeline Summary
 
 ```
-Step 2a: mesosfer.data.dataset -n 170     ─┐
-Step 2b: scripts.data.prepare_data         ├─ can run in parallel
-Step 2c: scripts.data.convert_logs_to_nl  ─┘
+Step 2a: scripts.data.prepare_data         ─┐  (auto-downloads ClimbMix shards)
+Step 2b: scripts.data.convert_logs_to_nl   ─┘  can run in parallel
          ↓
 Step 3:  scripts.train.tok_train
          scripts.eval.tok_eval
@@ -263,7 +283,8 @@ Step 4:  scripts.train.base_train
          ↓
 Step 5:  scripts.eval.base_eval
          ↓
-Step 6:  scripts.chat.chat_sft
+Step 6a: scripts.data.download_sft_data    (fetch external SFT datasets)
+Step 6b: scripts.chat.chat_sft
          ↓
 Step 7:  scripts.chat.chat_cli / chat_web
          ↓
@@ -292,7 +313,7 @@ mesosfer/
 │   ├── train/              # base_train.py, tok_train.py
 │   ├── chat/               # chat_sft.py, chat_rl.py, chat_cli.py, chat_web.py
 │   ├── eval/               # base_eval.py, tok_eval.py
-│   └── data/               # prepare_data.py, convert_logs_to_nl.py
+│   └── data/               # prepare_data.py, convert_logs_to_nl.py, download_sft_data.py
 ├── tasks/                  # Eval tasks (MMLU, GSM8K, cybersec_sft, cybersec_rl)
 ├── data/
 │   ├── log/                # Raw security logs (input to convert_logs_to_nl)
@@ -326,12 +347,12 @@ mesosfer/
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--depth` | 20 | Transformer depth (24 recommended) |
-| `--aspect-ratio` | 64 | Model dimension = depth × 64 |
+| `--depth` | 32 | Transformer depth (32 ≈ 11.5B params) |
+| `--aspect-ratio` | 128 | Model dimension = depth × aspect-ratio |
 | `--head-dim` | 128 | Attention head dimension |
 | `--max-seq-len` | 2048 | Maximum context length |
 | `--device-batch-size` | 32 | Batch size per GPU |
-| `--target-param-data-ratio` | 12 | Data-to-parameters ratio (10 recommended) |
+| `--target-param-data-ratio` | 15 | Data-to-parameters ratio (~100B tokens at depth 32) |
 | `--warmup-steps` | 200 | LR warmup steps (200 for depth 20+) |
 | `--window-pattern` | L | Attention window: L=full, S=sliding (L required for ROCm) |
 | `--save-every` | 1000 | Checkpoint every N steps |
@@ -368,7 +389,7 @@ See [DATASET.md](DATASET.md) for dataset sources, sampling weights, and token bu
 - Python 3.12+
 - PyTorch 2.6.0+ (ROCm 7.0) or 2.9.1+ (CUDA 12.8)
 - NVIDIA GPU (CUDA 12.8+) or AMD GPU (ROCm 7.0+)
-- 16GB+ GPU VRAM (32GB+ recommended for depth 24)
+- 16GB+ GPU VRAM (80GB+ recommended for depth 32)
 
 ---
 
@@ -414,7 +435,7 @@ num_heads = model_dim / head_dim
 
 ### Depth × Aspect Ratio → Parameter Count
 
-| Depth | Aspect Ratio | Model Dim | ~Total Params | Dataset needed (ratio=10) | Covered by ~8.5B dataset? |
+| Depth | Aspect Ratio | Model Dim | ~Total Params | Dataset needed (ratio=10) | Covered by ~100B dataset? |
 |-------|-------------|-----------|---------------|---------------------------|---------------------------|
 | 16 | 64 | 1024 | ~0.9B | ~2.7B | ✅ |
 | 18 | 64 | 1152 | ~1.2B | ~3.6B | ✅ |
@@ -423,13 +444,13 @@ num_heads = model_dim / head_dim
 | 24 | 64 | 1536 | ~2.2B | ~7.8B | ✅ |
 | 28 | 64 | 1792 | ~3.1B | ~12.0B | ✅ |
 | 32 | 128 | 4096 | ~11.5B | ~67B | ✅ |
-| 36 | 128 | 4608 | ~15.5B | ~95B | ❌ need more data |
+| 36 | 128 | 4608 | ~15.5B | ~95B | ✅ |
 | 40 | 128 | 5120 | ~20.3B | ~129B | ❌ need more data |
 | 44 | 128 | 5632 | ~26.0B | ~171B | ❌ need more data |
 | 48 | 128 | 6144 | ~32.6B | ~222B | ❌ need more data |
 
 > "Dataset needed" = scaling params × ratio=10. Scaling params = transformer matrices + lm_head (excludes embeddings).
-> Current dataset (~8.5B tokens) fully covers depth 16–24. For depth 28+, additional data sources are required.
+> Current dataset (~100B tokens) covers depth 16–36 at ratio=10. For depth 40+, additional data sources are required.
 > For Chinchilla-optimal training (ratio=20), double the token requirements above.
 
 To train a larger model, simply pass the desired depth and aspect ratio:
@@ -452,7 +473,7 @@ python -m scripts.train.base_train \
     --run=d40_run
 ```
 
-Features like GQA, Flash Attention 2/3, RoPE, RMSNorm, and BF16/FP8 are already implemented and designed for large-scale training. The main practical constraints for 7B+ models are **data volume** (current dataset ~8.5B tokens covers up to ~850M scaling params at ratio=10) and **hardware** (7B in BF16 requires ~14GB weights + optimizer state, recommend 2–4× A100/H100 80GB or 1× MI300X).
+Features like GQA, Flash Attention 2/3, RoPE, RMSNorm, and BF16/FP8 are already implemented and designed for large-scale training. The main practical constraints for 7B+ models are **data volume** (current dataset ~100B tokens covers up to ~6.5B scaling params at ratio≈15) and **hardware** (7B in BF16 requires ~14GB weights + optimizer state, recommend 2–4× A100/H100 80GB or 1× MI300X).
 
 ---
 

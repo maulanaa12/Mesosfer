@@ -88,6 +88,16 @@ parser.add_argument("--openhermes-epochs", type=int, default=1, help="epochs of 
 parser.add_argument("--ultrachat-epochs", type=int, default=1, help="epochs of UltraChat 200K (100K rows, 0=skip)")
 parser.add_argument("--trendyol-cyber-epochs", type=int, default=1, help="epochs of Trendyol Cybersecurity Instruction (53K rows, 0=skip)")
 parser.add_argument("--tiamz-cybersec-epochs", type=int, default=2, help="epochs of Tiamz cybersecurity Q&A (12K rows)")
+parser.add_argument("--alpaca-indonesian-epochs", type=int, default=1, help="epochs of Alpaca Cleaned Indonesian instruction dataset (~52K rows, 0=skip)")
+parser.add_argument("--competition-math-epochs", type=int, default=2, help="epochs of competition_math_sft (~10K rows, 0=skip)")
+parser.add_argument("--magpie-reasoning-epochs", type=int, default=1, help="epochs of magpie_reasoning_sft (~50K rows, 0=skip)")
+parser.add_argument("--open-thoughts-epochs", type=int, default=1, help="epochs of open_thoughts_sft (~50K rows, 0=skip)")
+parser.add_argument("--nist-cybersec-epochs", type=int, default=1, help="epochs of nist_cybersec_sft (~50K rows, 0=skip)")
+parser.add_argument("--fenrir-v2-epochs", type=int, default=1, help="epochs of fenrir_v2_sft (~99K rows, 0=skip)")
+parser.add_argument("--code-feedback-epochs", type=int, default=1, help="epochs of code_feedback_sft (~50K rows, 0=skip)")
+parser.add_argument("--numinamath-cot-epochs", type=int, default=1, help="epochs of numinamath_cot_sft (~50K rows, 0=skip)")
+parser.add_argument("--aquilax-security-reasoning-epochs", type=int, default=2, help="epochs of aquilax_security_reasoning_sft cybersec CoT (~18K rows, gated, 0=skip)")
+parser.add_argument("--xlam-function-calling-epochs", type=int, default=1, help="epochs of xlam_function_calling_sft generic tool-calling (~20K rows, gated, 0=skip)")
 parser.add_argument("--include-english-sft", type=int, default=1, help="1 = include _en variants of bilingual cybersec datasets, 0 = ID only")
 parser.add_argument("--disable-cybersec-sft", action="store_true", help="disable all cybersecurity SFT datasets (for ablation)")
 parser.add_argument("--rules-epochs", type=int, default=4, help="epochs of rules.jsonl (behavioral/safety/format rules)")
@@ -286,6 +296,16 @@ elif not args.disable_cybersec_sft:
         ultrachat_epochs=args.ultrachat_epochs,
         trendyol_cyber_epochs=args.trendyol_cyber_epochs,
         tiamz_cybersec_epochs=args.tiamz_cybersec_epochs,
+        alpaca_indonesian_epochs=args.alpaca_indonesian_epochs,
+        competition_math_epochs=args.competition_math_epochs,
+        magpie_reasoning_epochs=args.magpie_reasoning_epochs,
+        open_thoughts_epochs=args.open_thoughts_epochs,
+        nist_cybersec_epochs=args.nist_cybersec_epochs,
+        fenrir_v2_epochs=args.fenrir_v2_epochs,
+        code_feedback_epochs=args.code_feedback_epochs,
+        numinamath_cot_epochs=args.numinamath_cot_epochs,
+        aquilax_security_reasoning_epochs=args.aquilax_security_reasoning_epochs,
+        xlam_function_calling_epochs=args.xlam_function_calling_epochs,
         include_english=bool(args.include_english_sft),
     )
     train_tasks.extend(cybersec_tasks)

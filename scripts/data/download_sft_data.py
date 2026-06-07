@@ -154,6 +154,123 @@ SOURCES = {
         "max_rows": 55_000,
         "gated": False,
     },
+    # -------------------------------------------------------------------------
+    # Competition Math SFT — step-by-step math reasoning
+    # HF Link: https://huggingface.co/datasets/hendrycks/competition_math
+    "competition_math_sft": {
+        "hf_name": "hendrycks/competition_math",
+        "split": "train",
+        "streaming": True,
+        "format": "instruction_answer",
+        "output_file": "competition_math_sft.jsonl",
+        "max_rows": 10_000,
+        "gated": False,
+    },
+    # -------------------------------------------------------------------------
+    # Magpie Reasoning V2 — 250K high-quality reasoning pairs from DeepSeek-R1-Llama
+    # HF Link: https://huggingface.co/datasets/Magpie-Align/Magpie-Reasoning-V2-250K-CoT-Deepseek-R1-Llama-70B
+    "magpie_reasoning_sft": {
+        "hf_name": "Magpie-Align/Magpie-Reasoning-V2-250K-CoT-Deepseek-R1-Llama-70B",
+        "split": "train",
+        "streaming": True,
+        "format": "instruction_answer",
+        "output_file": "magpie_reasoning_sft.jsonl",
+        "max_rows": 50_000,
+        "gated": False,
+    },
+    # -------------------------------------------------------------------------
+    # OpenThoughts-114k — 114K high-quality reasoning/COT conversations
+    # HF Link: https://huggingface.co/datasets/open-thoughts/OpenThoughts-114k
+    "open_thoughts_sft": {
+        "hf_name": "open-thoughts/OpenThoughts-114k",
+        "split": "train",
+        "streaming": True,
+        "format": "messages",
+        "output_file": "open_thoughts_sft.jsonl",
+        "max_rows": 50_000,
+        "gated": False,
+    },
+    # -------------------------------------------------------------------------
+    # Moved from the pretraining pipeline (scripts/data/prepare_data.py): these
+    # are instruction/chat/CoT datasets, so they belong in SFT, not pretraining.
+    # -------------------------------------------------------------------------
+    # NIST cybersecurity training — conversation-format SFT.
+    # HF Link: https://huggingface.co/datasets/ethanolivertroy/nist-cybersecurity-training
+    "nist_cybersec": {
+        "hf_name": "ethanolivertroy/nist-cybersecurity-training",
+        "split": "train",
+        "streaming": True,
+        "format": "auto",
+        "data_files": {"train": "train.jsonl"},
+        "output_file": "nist_cybersec_sft.jsonl",
+        "max_rows": 50_000,
+        "gated": False,
+    },
+    # -------------------------------------------------------------------------
+    # Fenrir v2.1 — 99K cybersec Q&A mapped to OWASP/MITRE/NIST.
+    # HF Link: https://huggingface.co/datasets/AlicanKiraz0/Cybersecurity-Dataset-Fenrir-v2.1
+    "fenrir_v2": {
+        "hf_name": "AlicanKiraz0/Cybersecurity-Dataset-Fenrir-v2.1",
+        "split": "train",
+        "streaming": False,
+        "format": "auto",
+        "output_file": "fenrir_v2_sft.jsonl",
+        "max_rows": 99_000,
+        "gated": False,
+    },
+    # -------------------------------------------------------------------------
+    # Code-Feedback — multi-language coding feedback/instruction conversations.
+    # HF Link: https://huggingface.co/datasets/m-a-p/Code-Feedback
+    "code_feedback": {
+        "hf_name": "m-a-p/Code-Feedback",
+        "split": "train",
+        "streaming": True,
+        "format": "messages",
+        "output_file": "code_feedback_sft.jsonl",
+        "max_rows": 50_000,
+        "gated": False,
+    },
+    # -------------------------------------------------------------------------
+    # NuminaMath-CoT — competition math with chain-of-thought solutions.
+    # HF Link: https://huggingface.co/datasets/AI-MO/NuminaMath-CoT
+    "numinamath_cot": {
+        "hf_name": "AI-MO/NuminaMath-CoT",
+        "split": "train",
+        "streaming": True,
+        "format": "auto",
+        "output_file": "numinamath_cot_sft.jsonl",
+        "max_rows": 50_000,
+        "gated": False,
+    },
+    # -------------------------------------------------------------------------
+    # AquilaX security-assistant reasoning — 18K cybersecurity vulnerability
+    # analysis examples with explicit chain-of-thought (CWE root-cause, impact,
+    # remediation). Builds cybersecurity-domain reasoning (not just math).
+    # Gated: requires HF token + accepting dataset terms.
+    # HF Link: https://huggingface.co/datasets/tuandunghcmut/AquilaX-AI-security-assistant-reasoning
+    "aquilax_security_reasoning": {
+        "hf_name": "tuandunghcmut/AquilaX-AI-security-assistant-reasoning",
+        "split": "train",
+        "streaming": True,
+        "format": "aquilax_reasoning",
+        "output_file": "aquilax_security_reasoning_sft.jsonl",
+        "max_rows": 18_282,
+        "gated": True,
+    },
+    # -------------------------------------------------------------------------
+    # xLAM function-calling (APIGen) — 60K verified single-turn tool calls.
+    # Teaches generic named tool-calling via <|tool_start|>/<|tool_end|>.
+    # License cc-by-4.0 (attribution); gated: requires HF token + accepting terms.
+    # HF Link: https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k
+    "xlam_function_calling": {
+        "hf_name": "Salesforce/xlam-function-calling-60k",
+        "split": "train",
+        "streaming": True,
+        "format": "function_calling",
+        "output_file": "xlam_function_calling_sft.jsonl",
+        "max_rows": 20_000,
+        "gated": True,
+    },
 }
 
 # =============================================================================
@@ -250,8 +367,8 @@ def convert_system_user_assistant(row) -> list | None:
 
 def convert_instruction_answer(row) -> list | None:
     """Handle datasets with instruction/answer columns (e.g. Tiamz)."""
-    instruction = row.get("instruction") or row.get("question") or row.get("input") or ""
-    answer = row.get("answer") or row.get("output") or row.get("response") or ""
+    instruction = row.get("instruction") or row.get("question") or row.get("input") or row.get("problem") or ""
+    answer = row.get("answer") or row.get("output") or row.get("response") or row.get("solution") or ""
     if not instruction or not answer:
         return None
     if not isinstance(instruction, str) or not isinstance(answer, str):
@@ -280,12 +397,113 @@ def convert_alpaca(row) -> list | None:
     ]
 
 
+def convert_auto(row) -> list | None:
+    """Try each converter in turn; return the first successful conversion.
+
+    Useful for sources whose exact schema is uncertain (these were moved from
+    the pretraining pipeline, where they had been flattened to plain text)."""
+    for fn in (convert_messages_format, convert_system_user_assistant,
+               convert_instruction_answer, convert_alpaca):
+        result = fn(row)
+        if result:
+            return result
+    return None
+
+
+def convert_function_calling(row) -> list | None:
+    """Convert an xLAM-style function-calling row to mesosfer tool-call SFT format.
+
+    Source schema (Salesforce/xlam-function-calling-60k):
+      - query   (str)            : the user request
+      - tools   (str: JSON list) : available tool definitions {name, description, parameters}
+      - answers (str: JSON list) : the calls to make, each {name, arguments}
+
+    Output: a user turn (query + a compact list of available tools) and an
+    assistant turn whose content is a list of ``tool`` parts. Each part's text
+    is the JSON ``{"name": ..., "arguments": {...}}`` rendered between
+    ``<|tool_start|>`` / ``<|tool_end|>`` by the tokenizer. This generalises
+    beyond Python to any named tool (shell, scanners, SQL, HTTP, ...).
+    """
+    def _maybe_json(v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return None
+        return v
+
+    query = row.get("query")
+    tools = _maybe_json(row.get("tools"))
+    answers = _maybe_json(row.get("answers"))
+    if not isinstance(query, str) or not query.strip():
+        return None
+    if not isinstance(answers, list) or len(answers) == 0:
+        return None
+
+    # Build the user turn: query + a concise listing of available tools.
+    user_content = query.strip()
+    if isinstance(tools, list) and tools:
+        tool_lines = []
+        for t in tools:
+            if not isinstance(t, dict) or not t.get("name"):
+                continue
+            desc = str(t.get("description", "")).strip()
+            tool_lines.append(f"- {t['name']}: {desc}" if desc else f"- {t['name']}")
+        if tool_lines:
+            user_content = f"{user_content}\n\nAvailable tools:\n" + "\n".join(tool_lines)
+
+    # Build the assistant turn: one tool part per answer.
+    parts = []
+    for ans in answers:
+        if not isinstance(ans, dict) or not ans.get("name"):
+            continue
+        call = {"name": ans["name"], "arguments": ans.get("arguments", {})}
+        parts.append({"type": "tool", "text": json.dumps(call, ensure_ascii=False)})
+    if not parts:
+        return None
+
+    return [
+        {"role": "user", "content": user_content},
+        {"role": "assistant", "content": parts},
+    ]
+
+
+def convert_aquilax_reasoning(row) -> list | None:
+    """Convert AquilaX security-reasoning rows to mesosfer SFT format.
+
+    The source encodes the assistant turn as
+    ``<|reserved_special_token_0|>{reasoning}<|reserved_special_token_1|>{answer}``
+    using Llama-3 reserved tokens that mesosfer's tokenizer does not have.
+    We strip those tokens and join reasoning + answer into a single natural
+    chain-of-thought assistant response.
+    """
+    raw = _extract_messages_field(row)
+    if not raw:
+        return None
+    cleaned_raw = []
+    for msg in raw:
+        if not isinstance(msg, dict):
+            continue
+        content = msg.get("content") or msg.get("value") or msg.get("text") or ""
+        if isinstance(content, str) and "<|reserved_special_token_0|>" in content:
+            parts = content.split("<|reserved_special_token_1|>")
+            reasoning = parts[0].replace("<|reserved_special_token_0|>", "").strip()
+            answer = parts[1].strip() if len(parts) > 1 else ""
+            content = f"{reasoning}\n\n{answer}".strip() if reasoning else answer
+            msg = {**msg, "content": content}
+        cleaned_raw.append(msg)
+    return _convert_messages(cleaned_raw)
+
+
 CONVERTERS = {
     "messages": convert_messages_format,
     "dpo_to_sft": convert_dpo_to_sft,
     "system_user_assistant": convert_system_user_assistant,
     "instruction_answer": convert_instruction_answer,
     "alpaca": convert_alpaca,
+    "auto": convert_auto,
+    "aquilax_reasoning": convert_aquilax_reasoning,
+    "function_calling": convert_function_calling,
 }
 
 # =============================================================================
@@ -334,6 +552,8 @@ def download_source(name: str, config: dict, hf_token: str | None = None) -> tup
         load_kwargs["token"] = hf_token
     if config.get("hf_subset"):
         load_kwargs["name"] = config["hf_subset"]
+    if config.get("data_files"):
+        load_kwargs["data_files"] = config["data_files"]
 
     try:
         ds = load_dataset(hf_name, split=split, **load_kwargs)

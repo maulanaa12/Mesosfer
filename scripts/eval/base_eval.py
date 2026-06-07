@@ -93,6 +93,7 @@ EVAL_BUNDLE_URL = "https://karpathy-public.s3.us-west-2.amazonaws.com/eval_bundl
 
 HF_MMLU_DATASET = "cais/mmlu"
 HF_CYBERMETRIC_DATASET = "tuandunghcmut/cybermetric_500_v1"
+HF_SECBENCH_DATASET = "secbench-hf/SecBench"
 HF_CODEMMLU_DATASET = "Fsoft-AIC/CodeMMLU"
 
 
@@ -162,6 +163,31 @@ def _convert_hf_cybermetric_split_to_core_jsonl(dataset, output_path):
     _write_core_jsonl(items, output_path)
 
 
+def _convert_hf_secbench_split_to_core_jsonl(dataset, output_path):
+    """Write the English MCQ subset of SecBench in CORE multiple-choice JSONL format.
+
+    SecBench is bilingual (Chinese + English) and some MCQs are multi-answer.
+    We keep only English, single-answer (A-D) questions with exactly 4 choices so
+    the result is a clean 4-way multiple-choice task comparable to the others.
+    """
+    def _iter():
+        for row in dataset:
+            if str(row.get("language", "")).strip().lower() != "english":
+                continue
+            label = str(row.get("label", "")).strip()
+            if len(label) != 1 or label.upper() not in "ABCD":
+                continue
+            choices = row.get("answers")
+            if not isinstance(choices, list) or len(choices) != 4:
+                continue
+            yield {
+                "query": row["question"],
+                "choices": choices,
+                "gold": _letter_answer_to_index(label),
+            }
+    _write_core_jsonl(_iter(), output_path)
+
+
 def _convert_hf_codemmlu_split_to_core_jsonl(dataset, output_path):
     """Write a CodeMMLU split in CORE multiple-choice JSONL format."""
     items = ({
@@ -196,17 +222,20 @@ def prepare_hf_mmlu_core_jsonl(subject, output_path, split="test"):
     return True, f"created from {HF_MMLU_DATASET}/{subject}:{split}"
 
 
-def prepare_hf_core_jsonl(dataset_name, output_path, subset=None, split="test", converter=None):
+def prepare_hf_core_jsonl(dataset_name, output_path, subset=None, split="test", converter=None, data_files=None):
     """Materialize a HF dataset/subset into local CORE eval format."""
     if os.path.exists(output_path):
         return True, "cached"
 
     try:
         from datasets import load_dataset
+        load_kwargs = {"split": split}
+        if data_files is not None:
+            load_kwargs["data_files"] = data_files
         if subset is None:
-            dataset = load_dataset(dataset_name, split=split)
+            dataset = load_dataset(dataset_name, **load_kwargs)
         else:
-            dataset = load_dataset(dataset_name, subset, split=split)
+            dataset = load_dataset(dataset_name, subset, **load_kwargs)
     except Exception as exc:
         target = dataset_name if subset is None else f"{dataset_name}/{subset}"
         return False, f"HF dataset unavailable ({target}): {exc}"
@@ -569,6 +598,19 @@ def main():
                 "random_baseline": 25.0,
                 "description": "CyberMetric 500 (3-shot)",
             },
+            {
+                "label": "secbench_mcq_en",
+                "dataset_uri": "secbench_mcq_en.jsonl",
+                "hf_dataset": HF_SECBENCH_DATASET,
+                "hf_subset": None,
+                "hf_split": "train",
+                "hf_data_files": "data/MCQs_2730.jsonl",
+                "hf_converter": _convert_hf_secbench_split_to_core_jsonl,
+                "task_type": "multiple_choice",
+                "num_fewshot": 3,
+                "random_baseline": 25.0,
+                "description": "SecBench MCQ English (3-shot)",
+            },
         ]
 
         for cfg in cybersec_tasks_cfg:
@@ -583,6 +625,7 @@ def main():
                         subset=cfg.get("hf_subset"),
                         split=cfg.get("hf_split", "test"),
                         converter=cfg["hf_converter"],
+                        data_files=cfg.get("hf_data_files"),
                     )
                 print0(f"  {cfg['label']}: {message}")
                 if not ok:

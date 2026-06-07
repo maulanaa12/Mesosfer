@@ -20,8 +20,10 @@ from mesosfer.eval.core_eval import evaluate_task
 from scripts.eval.base_eval import (
     HF_CODEMMLU_DATASET,
     HF_CYBERMETRIC_DATASET,
+    HF_SECBENCH_DATASET,
     _convert_hf_codemmlu_split_to_core_jsonl,
     _convert_hf_cybermetric_split_to_core_jsonl,
+    _convert_hf_secbench_split_to_core_jsonl,
     _random_baseline_for_data,
     prepare_hf_core_jsonl,
     prepare_hf_mmlu_core_jsonl,
@@ -253,6 +255,20 @@ def run_chat_domain_eval(model, tokenizer, device, max_problems=None, domains="c
                 "random_baseline": 25.0,
                 "description": "CyberMetric 500 (3-shot)",
             },
+            {
+                "label": "secbench_mcq_en",
+                "dataset_uri": "secbench_mcq_en.jsonl",
+                "prepare": lambda path: prepare_hf_core_jsonl(
+                    HF_SECBENCH_DATASET,
+                    path,
+                    split="train",
+                    data_files="data/MCQs_2730.jsonl",
+                    converter=_convert_hf_secbench_split_to_core_jsonl,
+                ),
+                "num_fewshot": 3,
+                "random_baseline": 25.0,
+                "description": "SecBench MCQ English (3-shot)",
+            },
         ]
         for cfg in cyber_tasks:
             data_path = f"{data_base_path}/{cfg['dataset_uri']}"
@@ -298,7 +314,7 @@ def run_chat_domain_eval(model, tokenizer, device, max_problems=None, domains="c
             centered_results[label] = centered
 
     metrics = {}
-    for domain_name, prefix in [("ChatCyberDomain metric", ("mmlu_", "cybermetric_")),
+    for domain_name, prefix in [("ChatCyberDomain metric", ("mmlu_", "cybermetric_", "secbench_")),
                                 ("ChatCodingDomain metric", ("codemmlu_",))]:
         domain_values = [centered for label, centered in centered_results.items() if label.startswith(prefix)]
         if domain_values:
