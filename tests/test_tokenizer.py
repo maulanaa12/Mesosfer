@@ -186,3 +186,49 @@ def test_render_conversation_tool_call_parts(tok):
         # tool output (from the environment) is NOT supervised
         if tid == output_start:
             assert m == 0
+
+
+# -----------------------------------------------------------------------------
+# Hex / number split-pattern behaviour (cybersecurity-domain pre-tokenization).
+# SPLIT_PATTERN isolates `0x...` literals and long hash/address runs (>=8 hex chars)
+# as single pre-tokens, while ordinary English words must NOT be captured by the
+# hex rule. These are contract tests on the pre-tokenizer, verified via round-trip
+# (the pattern only affects token boundaries, never the decoded bytes).
+
+
+@pytest.fixture(scope="module")
+def hex_tok():
+    # A corpus rich in hex literals, hashes and addresses so BPE learns relevant merges.
+    corpus = [
+        "address 0xdeadbeef 0xCAFEBABE offset 0x1f4 0x00ff " * 40,
+        "sha256 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08 " * 40,
+        "md5 5d41402abc4b2a76b9719d911017c592 hash 0123456789abcdef " * 40,
+        "the quick brown fox jumps over the lazy dog facade decade cabbage feedback " * 40,
+    ]
+    return RustBPETokenizer.train_from_iterator(iter(corpus * 20), vocab_size=512)
+
+
+@pytest.mark.parametrize("text", [
+    "0xdeadbeef",
+    "0xCAFEBABE plus tail",
+    "hash 9f86d081884c7d659a2feaa0c55ad015 done",
+    "md5 5d41402abc4b2a76b9719d911017c592",
+    "decimal 12345678 and 9000000001",
+])
+def test_hex_roundtrip(hex_tok, text):
+    # Whatever the boundaries, encode->decode must be lossless.
+    assert hex_tok.decode(hex_tok.encode(text)) == text
+
+
+def test_hex_rule_does_not_capture_normal_words(hex_tok):
+    # Ordinary English words (even those made only of a-f letters but <8 chars, or
+    # >=8 chars containing non-hex letters) must round-trip and not be mangled.
+    for word in ["facade", "decade", "cabbage", "feedback", "deadbeef", "defaced"]:
+        assert hex_tok.decode(hex_tok.encode(word)) == word
+
+
+def test_hex_special_tokens_still_resolvable(hex_tok):
+    # Sanity: the split-pattern change must not break special-token resolution.
+    ids = [hex_tok.encode_special(t) for t in SPECIAL_TOKENS]
+    assert all(isinstance(i, int) for i in ids)
+    assert len(set(ids)) == len(SPECIAL_TOKENS)

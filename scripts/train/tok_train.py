@@ -16,7 +16,7 @@ from mesosfer.data.dataset import parquets_iter_batched
 parser = argparse.ArgumentParser(description='Train a BPE tokenizer')
 parser.add_argument('--max-chars', type=int, default=2_000_000_000, help='Maximum characters to train on (default: 2B)')
 parser.add_argument('--doc-cap', type=int, default=10_000, help='Maximum characters per document (default: 10,000)')
-parser.add_argument('--vocab-size', type=int, default=65536, help='Vocabulary size (default: 65536 = 2^16)')
+parser.add_argument('--vocab-size', type=int, default=98304, help='Vocabulary size (default: 98304 = 96 * 1024). Larger vocab improves EN+ID+code+cyber compression; note this architecture has untied wte/lm_head plus per-half-layer value embeddings, so vocab cost is amplified.')
 args = parser.parse_args()
 print(f"max_chars: {args.max_chars:,}")
 print(f"doc_cap: {args.doc_cap:,}")

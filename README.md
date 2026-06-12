@@ -14,7 +14,7 @@ Mesosfer is inspired by [nanoGPT](https://github.com/karpathy/nanoGPT) and follo
 ## Features
 
 - **Pretraining** — Train base models from scratch using scaling laws
-- **Tokenizer Training** — Custom BPE tokenizer (64K vocab, cybersec-aware)
+- **Tokenizer Training** — Custom BPE tokenizer (96K vocab, cybersec-aware: hex/hash-aware splitting)
 - **Supervised Fine-Tuning (SFT)** — Instruction tuning with cybersecurity datasets
 - **Reinforcement Learning (RL)** — GRPO-style RL on cybersecurity tasks
 - **RLHF Data Collection** — Human feedback via thumbs up/down UI, stored to `data/rlhf/`
@@ -113,7 +113,7 @@ python -m scripts.data.convert_logs_to_nl --dry-run
 
 ### 3. Train Tokenizer
 
-Train a 64K BPE tokenizer on the prepared data. Requires Step 2a to be complete.
+Train a 96K BPE tokenizer on the prepared data. Requires Step 2a to be complete.
 
 ```bash
 python -m scripts.train.tok_train
@@ -129,10 +129,12 @@ python -m scripts.eval.tok_eval
 Requires Steps 2a, 2b, and 3 to be complete.
 
 ```bash
-# Depth 32 (~11.5B params) — default config, ~100B tokens at ratio=15
+# Depth 32 (~13.7B params @ 96K vocab; ~9.3B with --ve-layers=4) — ~100B tokens at ratio=15
 python -m scripts.train.base_train \
     --depth=32 \
     --target-param-data-ratio=15 \
+    --ve-layers=4 \
+    --grad-checkpoint \
     --device-batch-size=32 \
     --warmup-steps=500 \
     --window-pattern=L \
@@ -354,14 +356,16 @@ mesosfer/
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--depth` | 32 | Transformer depth (32 ≈ 11.5B params) |
+| `--depth` | 32 | Transformer depth (32 ≈ 13.7B params at 96K vocab / legacy VE; ~9.3B with `--ve-layers=4`) |
 | `--aspect-ratio` | 128 | Model dimension = depth × aspect-ratio |
 | `--head-dim` | 128 | Attention head dimension |
 | `--max-seq-len` | 2048 | Maximum context length |
 | `--device-batch-size` | 32 | Batch size per GPU |
-| `--target-param-data-ratio` | 15 | Data-to-parameters ratio (~100B tokens at depth 32) |
+| `--target-param-data-ratio` | 15 | Data-to-parameters ratio (~100B tokens at depth 32; 10 = faster/undertrained) |
 | `--warmup-steps` | 200 | LR warmup steps (200 for depth 20+) |
 | `--window-pattern` | L | Attention window: L=full, S=sliding (L required for ROCm) |
+| `--ve-layers` | -1 | Value-embedding placement: -1 = legacy (~half layers); K≥0 = first K layers + last only (cuts vocab-sized VE tables & memory) |
+| `--grad-checkpoint` | off | Activation checkpointing: recompute each block in backward to save activation memory (~30% extra compute; needed for deep/wide models) |
 | `--save-every` | 1000 | Checkpoint every N steps |
 | `--core-metric-every` | 5000 | CORE eval every N steps |
 
@@ -425,7 +429,7 @@ ruff check .
 | GPT-2 (reference) | ~124M | ~5B | ~0.9700 | ~0.2500 |
 | mesosfer d24 (Base, ratio=10) | ~1.38B | ~7.3B | 0.7337 | 0.2541 |
 | mesosfer d24 (SFT, step 1250) | ~1.38B | ~7.3B + ~1.2B | 0.7312 | **0.3486 (ChatCORE)** |
-| mesosfer d32 | ~11.5B | ~100B target (ratio=15) | TBA | TBA |
+| mesosfer d32 | ~13.7B | ~100B target (ratio=15) | TBA | TBA |
 
 > CORE score: average of MMLU (5-shot), GSM8K (COT), ARC-C, HumanEval (pass@1), Only base model
 
@@ -443,22 +447,24 @@ num_heads = model_dim / head_dim
 ### Depth × Aspect Ratio → Parameter Count
 
 | Depth | Aspect Ratio | Model Dim | ~Total Params | Dataset needed (ratio=10) | Covered by ~100B dataset? |
-|-------|-------------|-----------|---------------|---------------------------|---------------------------|
-| 16 | 64 | 1024 | ~0.9B | ~2.7B | ✅ |
-| 18 | 64 | 1152 | ~1.2B | ~3.6B | ✅ |
-| 20 | 64 | 1280 | ~1.5B | ~4.8B | ✅ |
-| 22 | 64 | 1408 | ~1.8B | ~6.2B | ✅ |
-| 24 | 64 | 1536 | ~2.2B | ~7.8B | ✅ |
-| 28 | 64 | 1792 | ~3.1B | ~12.0B | ✅ |
-| 32 | 128 | 4096 | ~11.5B | ~67B | ✅ |
-| 36 | 128 | 4608 | ~15.5B | ~95B | ✅ |
-| 40 | 128 | 5120 | ~20.3B | ~129B | ❌ need more data |
-| 44 | 128 | 5632 | ~26.0B | ~171B | ❌ need more data |
-| 48 | 128 | 6144 | ~32.6B | ~222B | ❌ need more data |
+| -------| --------------| -----------| ---------------| ---------------------------| ---------------------------|
+| 16    | 64           | 1024      | ~0.9B         | ~2.7B                     | ✅                         |
+| 18    | 64           | 1152      | ~1.2B         | ~3.6B                     | ✅                         |
+| 20    | 64           | 1280      | ~1.5B         | ~4.8B                     | ✅                         |
+| 22    | 64           | 1408      | ~1.8B         | ~6.2B                     | ✅                         |
+| 24    | 64           | 1536      | ~2.2B         | ~7.8B                     | ✅                         |
+| 28    | 64           | 1792      | ~3.1B         | ~12.0B                    | ✅                         |
+| 32    | 128          | 4096      | ~13.7B        | ~68B                      | ✅                         |
+| 36    | 128          | 4608      | ~18.2B        | ~96B                      | ✅                         |
+| 40    | 128          | 5120      | ~23.7B        | ~131B                     | ❌ need more data          |
+| 44    | 128          | 5632      | ~30.0B        | ~173B                     | ❌ need more data          |
+| 48    | 128          | 6144      | ~37.5B        | ~223B                     | ❌ need more data          |
 
 > "Dataset needed" = scaling params × ratio=10. Scaling params = transformer matrices + lm_head (excludes embeddings).
 > Current dataset (~100B tokens) covers depth 16–36 at ratio=10. For depth 40+, additional data sources are required.
 > For Chinchilla-optimal training (ratio=20), double the token requirements above.
+> Total params are at 96K vocab with default (legacy) value embeddings. `--ve-layers=K` cuts the vocab-sized
+> value-embedding tables substantially (e.g. d32 drops from ~13.7B to ~9.3B at `--ve-layers=4`), saving memory.
 
 To train a larger model, simply pass the desired depth and aspect ratio:
 

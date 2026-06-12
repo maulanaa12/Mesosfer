@@ -50,6 +50,8 @@ parser.add_argument("--fp8-recipe", type=str, default="tensorwise", choices=["ro
 parser.add_argument("--depth", type=int, default=32, help="depth of the Transformer model")
 parser.add_argument("--aspect-ratio", type=int, default=128, help="model_dim = depth * aspect_ratio")
 parser.add_argument("--head-dim", type=int, default=128, help="target head dimension for attention")
+parser.add_argument("--ve-layers", type=int, default=-1, help="value-embedding placement: -1 = legacy alternating (~half layers); K>=0 = first K layers + last layer only (cuts vocab-sized VE tables)")
+parser.add_argument("--grad-checkpoint", action="store_true", help="enable activation/gradient checkpointing (recompute blocks in backward to save activation memory; ~30%% extra compute)")
 parser.add_argument("--max-seq-len", type=int, default=2048, help="max context length")
 parser.add_argument("--window-pattern", type=str, default="L", help="sliding window pattern tiled across layers: L=full, S=half context (e.g. 'SSL'). Default 'L' is full attention — required for ROCm FA2 (Triton backend doesn't support sliding window backward pass yet). For NVIDIA, 'SSL' or 'SSSL' can save compute.")
 # Training horizon (only one used, in order of precedence)
@@ -144,7 +146,8 @@ def build_model_meta(depth):
     config = GPTConfig(
         sequence_len=args.max_seq_len, vocab_size=vocab_size,
         n_layer=depth, n_head=num_heads, n_kv_head=num_heads, n_embd=model_dim,
-        window_pattern=args.window_pattern,
+        window_pattern=args.window_pattern, ve_layers=args.ve_layers,
+        grad_checkpoint=args.grad_checkpoint,
     )
     with torch.device("meta"):
         model_meta = GPT(config)

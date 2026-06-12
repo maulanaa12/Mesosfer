@@ -18,6 +18,7 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.checkpoint
 
 from mesosfer.utils.common import get_dist_info, print0, COMPUTE_DTYPE
 from mesosfer.model.optim import MuonAdamW, DistMuonAdamW
@@ -37,6 +38,16 @@ class GPTConfig:
     # Characters: L=long (full context), S=short (quarter context = 512 tokens)
     # Pattern: SLSLSL alternating for depth 28 = 14 short + 14 long layers
     window_pattern: str = "SLSLSL"
+    # Value-embedding placement (ResFormer-style). These tables are vocab-sized, so they
+    # dominate parameter count at large vocab. Controls which layers get a value embedding:
+    #   -1  => legacy: alternating layers (same parity as last) ~= ceil(n_layer/2) tables
+    #   K>=0 => reduced: the first K layers + always the last layer
+    ve_layers: int = -1
+    # Activation (gradient) checkpointing: recompute each transformer block in backward
+    # instead of storing its activations. Trades ~30% extra compute for a large activation
+    # memory saving — needed to fit deep/wide models (e.g. d32+) in GPU memory.
+    # Only active during training (kv_cache is None). Default off for compatibility.
+    grad_checkpoint: bool = False
 
 
 def norm(x):
@@ -50,9 +61,18 @@ class Linear(nn.Linear):
         return F.linear(x, self.weight.to(dtype=x.dtype))
 
 
-def has_ve(layer_idx, n_layer):
-    """Returns True if GPT layer should have Value Embedding (alternating, last layer always included)."""
-    return layer_idx % 2 == (n_layer - 1) % 2
+def has_ve(layer_idx, n_layer, ve_layers=-1):
+    """Returns True if GPT layer should have a Value Embedding.
+
+    ve_layers < 0  : legacy placement — alternating layers with the same parity as the
+                     last layer (last layer always included), ~= ceil(n_layer/2) tables.
+    ve_layers >= 0 : reduced placement — only the first `ve_layers` layers plus the last
+                     layer. Cuts vocab-sized value-embedding tables (and their AdamW state)
+                     substantially at large vocab. ve_layers=0 keeps only the last layer.
+    """
+    if ve_layers is None or ve_layers < 0:
+        return layer_idx % 2 == (n_layer - 1) % 2
+    return layer_idx < ve_layers or layer_idx == n_layer - 1
 
 def apply_rotary_emb(x, cos, sin):
     assert x.ndim == 4  # multihead attention
@@ -77,7 +97,7 @@ class CausalSelfAttention(nn.Module):
         self.c_v = Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
         self.c_proj = Linear(self.n_embd, self.n_embd, bias=False)
         self.ve_gate_channels = 12
-        self.ve_gate = Linear(self.ve_gate_channels, self.n_kv_head, bias=False) if has_ve(layer_idx, config.n_layer) else None
+        self.ve_gate = Linear(self.ve_gate_channels, self.n_kv_head, bias=False) if has_ve(layer_idx, config.n_layer, config.ve_layers) else None
 
     def forward(self, x, ve, cos_sin, window_size, kv_cache):
         B, T, C = x.size()
@@ -187,7 +207,7 @@ class GPT(nn.Module):
         # Value embeddings (ResFormer-style): alternating layers, last layer always included
         head_dim = config.n_embd // config.n_head
         kv_dim = config.n_kv_head * head_dim
-        self.value_embeds = nn.ModuleDict({str(i): nn.Embedding(padded_vocab_size, kv_dim) for i in range(config.n_layer) if has_ve(i, config.n_layer)})
+        self.value_embeds = nn.ModuleDict({str(i): nn.Embedding(padded_vocab_size, kv_dim) for i in range(config.n_layer) if has_ve(i, config.n_layer, config.ve_layers)})
         # To support meta device initialization, we init the rotary embeddings here, but it's just "fake" meta tensors only.
         # As for rotary_seq_len, these rotary embeddings are pretty small/cheap in memory,
         # so let's just over-compute them by 10X, but assert fail if we ever reach that amount.
@@ -457,10 +477,19 @@ class GPT(nn.Module):
         n_layer = self.config.n_layer
         backout_layer = n_layer // 2  # cache at halfway point
         x_backout = None
+        # Activation checkpointing only applies to training (full-sequence, no kv_cache).
+        use_ckpt = self.config.grad_checkpoint and kv_cache is None and self.training
         for i, block in enumerate(self.transformer.h):
             x = self.resid_lambdas[i] * x + self.x0_lambdas[i] * x0
             ve = self.value_embeds[str(i)](idx).to(x.dtype) if str(i) in self.value_embeds else None
-            x = block(x, ve, cos_sin, self.window_sizes[i], kv_cache)
+            if use_ckpt:
+                # Recompute this block in backward instead of storing its activations.
+                x = torch.utils.checkpoint.checkpoint(
+                    block, x, ve, cos_sin, self.window_sizes[i], kv_cache,
+                    use_reentrant=False,
+                )
+            else:
+                x = block(x, ve, cos_sin, self.window_sizes[i], kv_cache)
             if i == backout_layer:
                 x_backout = x
         # Subtract mid-layer residual to remove low-level features before logit projection
