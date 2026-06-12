@@ -14,12 +14,12 @@ stages of **mesosfer**, kept in sync with the source of truth in code:
 
 | Mode                                             | Scaling Params | Ratio | Tokens Needed | Tokens Available | Status              |
 | :------------------------------------------------- | :--------------- | :------ | :-------------- | :----------------- | :-------------------- |
-| Speedrun (`--target-param-data-ratio=10`)        | ~6.5B          | 10×  | ~65B          | ~100B            | ✅ surplus          |
-| Recommended (`--target-param-data-ratio=15`)     | ~6.5B          | 15×  | ~98B          | ~100B            | ✅ fully covered    |
-| Compute-optimal (`--target-param-data-ratio=18`) | ~6.5B          | 18×  | ~117B         | ~100B            | ⚠️ slightly under |
+| Speedrun (`--target-param-data-ratio=10`)        | ~6.8B          | 10×  | ~68B          | ~100B            | ✅ surplus          |
+| Recommended (`--target-param-data-ratio=15`)     | ~6.8B          | 15×  | ~103B         | ~100B            | ✅ ~covered (marginal) |
+| Compute-optimal (`--target-param-data-ratio=18`) | ~6.8B          | 18×  | ~123B         | ~100B            | ⚠️ under            |
 
-> **Depth 32 config:** `n_embd = 32 × 128 = 4096`, ~9.8B total params, ~6.5B scaling params (excl. embeddings).
-> Recommended: `--depth=32 --target-param-data-ratio=15` (~100B tokens).
+> **Depth 32 config:** `n_embd = 32 × 128 = 4096`, **96K vocab**, ~13.7B total params (legacy VE; ~9.3B with `--ve-layers=4`), ~6.8B scaling params (transformer matrices + lm_head, excl. embeddings).
+> Recommended: `--depth=32 --target-param-data-ratio=10` (~68B, comfortable surplus) or `=15` (~103B, marginal). Use `--ve-layers=4 --grad-checkpoint` to cut memory.
 
 ### Pretraining mix by category (sum of `max_tokens`)
 

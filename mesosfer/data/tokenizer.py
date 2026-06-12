@@ -35,10 +35,17 @@ SPECIAL_TOKENS = [
 # vocab slots and leave untrained embedding / lm_head rows.
 
 
-# NOTE: this split pattern deviates from GPT-4 in that we use \p{N}{1,2} instead of \p{N}{1,3}
-# I did this because I didn't want to "waste" too many tokens on numbers for smaller vocab sizes.
-# I verified that 2 is the sweet spot for vocab size of 32K. 1 is a bit worse, 3 was worse still.
-SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,2}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
+# NOTE: this split pattern deviates from GPT-4 in two ways:
+# 1) Hex handling for the cybersecurity domain: `0x[0-9a-fA-F]+` keeps explicit hex
+#    literals together, and `[0-9a-fA-F]{8,}` keeps long hashes/addresses (>=8 chars)
+#    as a single pre-token instead of shattering them at digit boundaries. Note this
+#    also captures long decimal runs (e.g. 12345678) as one pre-token, which is fine
+#    for this domain (IDs, hashes, addresses).
+# 2) Number grouping uses \p{N}{1,3} (GPT-4 style). The original mesosfer pattern used
+#    \p{N}{1,2} (validated as the sweet spot for a 32K vocab). With the larger 96K vocab
+#    \p{N}{1,3} is reasonable, but this should be confirmed by a BPB A/B before being
+#    treated as the final default (see scripts/eval/tok_eval.py).
+SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|0x[0-9a-fA-F]+|[0-9a-fA-F]{8,}|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
 
 # -----------------------------------------------------------------------------
 # Generic GPT-4-style tokenizer based on HuggingFace Tokenizer
@@ -78,10 +85,9 @@ class HuggingFaceTokenizer:
         # Normalizer: None
         tokenizer.normalizer = None
         # Pre-tokenizer: GPT-4 style
-        # the regex pattern used by GPT-4 to split text into groups before BPE
-        # NOTE: The pattern was changed from \p{N}{1,3} to \p{N}{1,2} because I suspect it is harmful to
-        # very small models and smaller vocab sizes, because it is a little bit wasteful in the token space.
-        # (but I haven't validated this! TODO)
+        # the regex pattern used by GPT-4 to split text into groups before BPE.
+        # See SPLIT_PATTERN above for the mesosfer-specific deviations (hex handling for
+        # the cybersecurity domain, and \p{N}{1,3} number grouping for the 96K vocab).
         gpt4_split_regex = Regex(SPLIT_PATTERN) # huggingface demands that you wrap it in Regex!!
         tokenizer.pre_tokenizer = pre_tokenizers.Sequence([
             pre_tokenizers.Split(pattern=gpt4_split_regex, behavior="isolated", invert=False),

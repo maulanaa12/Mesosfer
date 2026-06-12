@@ -152,11 +152,20 @@ soc_log_text = r"""
 Between 03:14:22 and 03:14:48 UTC, internal host 10.10.24.57 generated 4 Suricata alerts (signature_id 2030011, "ET MALWARE Possible C2 Beaconing Activity", severity 1) targeting external IP 185.193.126.44 on TCP/443. The flow analysis showed periodic small-byte transfers (1244 bytes outbound, 1987 bytes inbound) with sub-second TLS handshakes, consistent with command-and-control beaconing rather than legitimate traffic. JA3 fingerprint 72a589da586844d7f0818ce684948eea matched known Cobalt Strike profiles. Concurrent DNS TXT queries for ajd82j3k2k2k.cmd-sync-storage.com (algorithmically generated subdomain pattern) returned base64-encoded answers — strong indicator of DNS tunneling exfiltration (MITRE ATT&CK T1071.004). Action taken: blackholed destination IP at perimeter firewall, queued endpoint for memory acquisition.
 """.strip()
 
-# The tokenizer was trained on data from earlier shards, so it has seen this data
-train_docs = next(parquets_iter_batched(split="train"))
-train_text = "\n".join(train_docs)
-val_docs = next(parquets_iter_batched(split="val"))
-val_text = "\n".join(val_docs)
+# The tokenizer was trained on data from earlier shards, so it has seen this data.
+# Guard against missing/unreadable parquet shards so the inline-text evaluation still runs.
+try:
+    train_docs = next(parquets_iter_batched(split="train"))
+    train_text = "\n".join(train_docs)
+except (StopIteration, FileNotFoundError, OSError) as e:
+    print(f"Warning: could not load train parquet shards ({type(e).__name__}: {e}); skipping fwe-train.")
+    train_text = ""
+try:
+    val_docs = next(parquets_iter_batched(split="val"))
+    val_text = "\n".join(val_docs)
+except (StopIteration, FileNotFoundError, OSError) as e:
+    print(f"Warning: could not load val parquet shards ({type(e).__name__}: {e}); skipping fwe-val.")
+    val_text = ""
 
 all_text = [
     ("news", news_text),
@@ -166,8 +175,9 @@ all_text = [
     ("science", science_text),
     ("cybersec", cybersec_text),
     ("soc-log", soc_log_text),
-    ("fwe-train", train_text),
 ]
+if train_text:
+    all_text.append(("fwe-train", train_text))
 if val_text:
     all_text.append(("fwe-val", val_text))
 
